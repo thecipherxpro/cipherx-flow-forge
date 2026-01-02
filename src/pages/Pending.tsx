@@ -1,12 +1,33 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Clock, LogOut } from 'lucide-react';
+import { Clock, LogOut } from 'lucide-react';
 
 const Pending = () => {
-  const { signOut, user } = useAuth();
+  const { signOut, user, userRole, isLoading } = useAuth();
   const navigate = useNavigate();
+
+  // Auto-redirect when role is assigned
+  useEffect(() => {
+    if (!isLoading && userRole) {
+      if (userRole === 'admin') {
+        navigate('/admin', { replace: true });
+      } else if (userRole === 'staff') {
+        navigate('/staff', { replace: true });
+      } else if (userRole === 'client') {
+        navigate('/portal', { replace: true });
+      }
+    }
+  }, [userRole, isLoading, navigate]);
+
+  // Redirect to auth if not logged in
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate('/auth', { replace: true });
+    }
+  }, [user, isLoading, navigate]);
 
   const handleSignOut = async () => {
     await signOut();
