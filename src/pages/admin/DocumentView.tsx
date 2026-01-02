@@ -19,7 +19,13 @@ import {
   DollarSign,
   Shield,
   PenTool,
-  Clock
+  Clock,
+  Link2,
+  Copy,
+  CheckCircle2,
+  Lock,
+  MapPin,
+  Globe
 } from 'lucide-react';
 import { format } from 'date-fns';
 import html2canvas from 'html2canvas';
@@ -47,6 +53,16 @@ interface Signature {
   signer_role: string;
   signed_at: string | null;
   is_required: boolean;
+  signature_data: string | null;
+  ip_address: string | null;
+  location_data: {
+    city?: string;
+    country?: string;
+    latitude?: number;
+    longitude?: number;
+    timezone?: string;
+  } | null;
+  user_agent: string | null;
 }
 
 interface CompanySettings {
@@ -620,31 +636,89 @@ const DocumentView = () => {
         {signatures && signatures.length > 0 && (
           <Card>
             <CardContent className="pt-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <PenTool className="h-5 w-5" />
-                Signatures
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {signatures.map((sig) => (
-                  <div key={sig.id} className="border rounded-lg p-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">{sig.signer_role}</p>
-                        <p className="font-medium">{sig.signer_name}</p>
-                        <p className="text-sm text-muted-foreground">{sig.signer_email}</p>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <PenTool className="h-5 w-5" />
+                  Signatures
+                </h2>
+                {document.status === 'signed' && (
+                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+                    <Lock className="h-3 w-3 mr-1" />
+                    Document Locked
+                  </Badge>
+                )}
+              </div>
+              <div className="space-y-4">
+                {signatures.map((sig) => {
+                  const signingUrl = `${window.location.origin}/sign/${id}?sig=${sig.id}`;
+                  
+                  return (
+                    <div key={sig.id} className="border rounded-lg p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <p className="text-sm text-muted-foreground">{sig.signer_role}</p>
+                          <p className="font-medium">{sig.signer_name}</p>
+                          <p className="text-sm text-muted-foreground">{sig.signer_email}</p>
+                        </div>
+                        {sig.signed_at ? (
+                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 w-fit">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Signed {format(new Date(sig.signed_at), 'MMM d, yyyy h:mm a')}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-amber-600 border-amber-300 w-fit">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Pending
+                          </Badge>
+                        )}
                       </div>
-                      {sig.signed_at ? (
-                        <Badge className="bg-green-100 text-green-800">
-                          Signed {format(new Date(sig.signed_at), 'MMM d')}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-amber-600 border-amber-300">
-                          Pending
-                        </Badge>
+                      
+                      {/* Show signature image if signed */}
+                      {sig.signed_at && sig.signature_data && (
+                        <div className="mt-4 p-3 bg-muted/30 rounded-lg">
+                          <img 
+                            src={sig.signature_data} 
+                            alt={`Signature of ${sig.signer_name}`}
+                            className="h-16 object-contain"
+                          />
+                          <div className="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                            {sig.ip_address && (
+                              <span className="flex items-center gap-1">
+                                <Globe className="h-3 w-3" />
+                                IP: {sig.ip_address}
+                              </span>
+                            )}
+                            {sig.location_data?.city && (
+                              <span className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {sig.location_data.city}, {sig.location_data.country}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Show signing link if not signed and document is sent */}
+                      {!sig.signed_at && document.status === 'sent' && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <div className="flex-1 p-2 bg-muted/50 rounded text-xs font-mono truncate">
+                            {signingUrl}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText(signingUrl);
+                              toast({ title: 'Signing link copied!' });
+                            }}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
                       )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
