@@ -1,12 +1,20 @@
 import { useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { 
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { SignatureCanvas, SignatureCanvasRef } from '@/components/SignatureCanvas';
 import { 
   ArrowLeft, 
   Download, 
@@ -25,7 +33,10 @@ import {
   CheckCircle2,
   Lock,
   MapPin,
-  Globe
+  Globe,
+  User,
+  Mail,
+  Briefcase
 } from 'lucide-react';
 import { format } from 'date-fns';
 import html2canvas from 'html2canvas';
@@ -109,8 +120,13 @@ const DocumentView = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const printRef = useRef<HTMLDivElement>(null);
+  const signatureCanvasRef = useRef<SignatureCanvasRef>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [signatureSheetOpen, setSignatureSheetOpen] = useState(false);
+  const [selectedSigner, setSelectedSigner] = useState<Signature | null>(null);
+  const [isSigning, setIsSigning] = useState(false);
 
   const { data: document, isLoading: docLoading } = useQuery({
     queryKey: ['document', id],
@@ -126,7 +142,7 @@ const DocumentView = () => {
     enabled: !!id
   });
 
-  const { data: signatures } = useQuery({
+  const { data: signatures, refetch: refetchSignatures } = useQuery({
     queryKey: ['signatures', id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -160,6 +176,86 @@ const DocumentView = () => {
     return new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(amount);
   };
 
+  const handleOpenSignatureSheet = (sig: Signature) => {
+    setSelectedSigner(sig);
+    setSignatureSheetOpen(true);
+  };
+
+  const handleCaptureSignature = async () => {
+    if (!selectedSigner || !signatureCanvasRef.current) return;
+    
+    const signatureData = signatureCanvasRef.current.getSignatureData();
+    if (!signatureData) {
+      toast({ variant: 'destructive', title: 'Please draw a signature first' });
+      return;
+    }
+
+    setIsSigning(true);
+    try {
+      // Get IP address
+      let ipAddress = '0.0.0.0';
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipRes.json();
+        ipAddress = ipData.ip;
+      } catch (e) {
+        console.log('Could not fetch IP');
+      }
+
+      // Update signature record
+      const { error: sigError } = await supabase
+        .from('signatures')
+        .update({
+          signature_data: signatureData,
+          signed_at: new Date().toISOString(),
+          ip_address: ipAddress,
+          user_agent: navigator.userAgent,
+          location_data: { admin_signed: true }
+        })
+        .eq('id', selectedSigner.id);
+
+      if (sigError) throw sigError;
+
+      // Log audit entry
+      await supabase.from('document_audit_log').insert({
+        document_id: id,
+        action: 'admin_signature_captured',
+        details: {
+          signer_name: selectedSigner.signer_name,
+          signer_email: selectedSigner.signer_email,
+          signer_role: selectedSigner.signer_role
+        },
+        ip_address: ipAddress
+      });
+
+      // Check if all signatures complete
+      const { data: allSigs } = await supabase
+        .from('signatures')
+        .select('signed_at')
+        .eq('document_id', id);
+
+      const allSigned = allSigs?.every(s => s.signed_at !== null);
+      if (allSigned) {
+        await supabase
+          .from('documents')
+          .update({ status: 'signed' })
+          .eq('id', id);
+        
+        queryClient.invalidateQueries({ queryKey: ['document', id] });
+      }
+
+      await refetchSignatures();
+      setSignatureSheetOpen(false);
+      setSelectedSigner(null);
+      toast({ title: 'Signature captured successfully' });
+    } catch (error) {
+      console.error('Error capturing signature:', error);
+      toast({ variant: 'destructive', title: 'Failed to capture signature' });
+    } finally {
+      setIsSigning(false);
+    }
+  };
+
   const handleExportPDF = async () => {
     if (!printRef.current || !document) return;
     
@@ -191,31 +287,26 @@ const DocumentView = () => {
       };
 
       // ===== COVER PAGE =====
-      // Background header
       pdf.setFillColor(primaryColor);
       pdf.rect(0, 0, pageWidth, 100, 'F');
       
-      // Company name
       addText(companySettings?.company_name || 'CipherX Solutions', margin, 40, { 
         fontSize: 28, 
         color: '#ffffff',
         fontStyle: 'bold'
       });
       
-      // Document type
       addText(documentTypeLabels[document.document_type] || document.document_type, margin, 55, { 
         fontSize: 16, 
         color: '#ffffff' 
       });
 
-      // Document title
       addText(document.title, margin, 130, { 
         fontSize: 24, 
         fontStyle: 'bold',
         maxWidth: contentWidth
       });
 
-      // Client info box
       pdf.setFillColor('#f3f4f6');
       pdf.roundedRect(margin, 150, contentWidth, 50, 3, 3, 'F');
       
@@ -232,16 +323,13 @@ const DocumentView = () => {
         addText(clientAddress, margin + 10, 190, { fontSize: 10, color: '#6b7280' });
       }
 
-      // Date info
       addText('Date: ' + format(new Date(document.created_at), 'MMMM d, yyyy'), margin, 220, { fontSize: 12 });
       if (document.expires_at) {
         addText('Valid Until: ' + format(new Date(document.expires_at), 'MMMM d, yyyy'), margin, 232, { fontSize: 12 });
       }
 
-      // Status badge
       addText('Status: ' + document.status.toUpperCase(), margin, 250, { fontSize: 12, fontStyle: 'bold' });
 
-      // Footer on cover
       pdf.setFillColor(secondaryColor);
       pdf.rect(0, pageHeight - 30, pageWidth, 30, 'F');
       
@@ -261,19 +349,17 @@ const DocumentView = () => {
       addText('Table of Contents', margin, 30, { fontSize: 22, fontStyle: 'bold' });
       
       let tocY = 50;
-      let pageNumber = 3; // Starting page for content
+      let pageNumber = 3;
       
       sections.forEach((section, idx) => {
         addText(`${idx + 1}. ${section.title}`, margin, tocY, { fontSize: 12 });
         addText(`${pageNumber}`, pageWidth - margin - 10, tocY, { fontSize: 12, color: '#6b7280' });
         tocY += 12;
         
-        // Approximate page increment (simplified)
         if ((section.content?.length || 0) > 1000) pageNumber++;
         pageNumber++;
       });
 
-      // Add pricing and signatures to TOC
       tocY += 10;
       addText(`${sections.length + 1}. Pricing & Investment`, margin, tocY, { fontSize: 12 });
       tocY += 12;
@@ -283,14 +369,12 @@ const DocumentView = () => {
       sections.forEach((section, idx) => {
         pdf.addPage();
         
-        // Section header
         pdf.setFillColor(primaryColor);
         pdf.rect(0, 0, pageWidth, 25, 'F');
         addText(`Section ${idx + 1}`, margin, 16, { fontSize: 10, color: '#ffffff' });
         
         addText(section.title, margin, 45, { fontSize: 18, fontStyle: 'bold' });
         
-        // Section content - split into lines
         const content = section.content || '';
         const lines = pdf.splitTextToSize(content, contentWidth);
         
@@ -304,7 +388,6 @@ const DocumentView = () => {
           yPos += 6;
         });
 
-        // Page number footer
         pdf.setFontSize(9);
         pdf.setTextColor('#9ca3af');
         pdf.text(`${document.title} | Page ${pdf.getNumberOfPages()}`, margin, pageHeight - 10);
@@ -320,7 +403,6 @@ const DocumentView = () => {
         
         addText('Pricing & Investment', margin, 45, { fontSize: 18, fontStyle: 'bold' });
 
-        // Pricing table header
         let tableY = 60;
         pdf.setFillColor('#f3f4f6');
         pdf.rect(margin, tableY, contentWidth, 10, 'F');
@@ -340,7 +422,6 @@ const DocumentView = () => {
           tableY += 10;
         });
 
-        // Totals
         tableY += 5;
         pdf.setDrawColor('#e5e7eb');
         pdf.line(margin, tableY, margin + contentWidth, tableY);
@@ -416,13 +497,11 @@ const DocumentView = () => {
       addText('Compliance Confirmed:', margin, 118, { fontSize: 10, fontStyle: 'bold' });
       addText(document.compliance_confirmed ? 'Yes' : 'No', margin + 50, 118, { fontSize: 10 });
 
-      // Final footer
       pdf.setFillColor('#f3f4f6');
       pdf.rect(0, pageHeight - 25, pageWidth, 25, 'F');
       addText('This document was generated by ' + (companySettings?.company_name || 'CipherX Solutions'), margin, pageHeight - 12, { fontSize: 9, color: '#6b7280' });
       addText(format(new Date(), 'MMMM d, yyyy'), pageWidth - margin - 40, pageHeight - 12, { fontSize: 9, color: '#6b7280' });
 
-      // Save the PDF
       pdf.save(`${document.title.replace(/[^a-z0-9]/gi, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
       
       toast({ title: 'PDF exported successfully' });
@@ -455,81 +534,109 @@ const DocumentView = () => {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 px-1 sm:px-0">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/admin/documents')}>
-            <ArrowLeft className="h-5 w-5" />
+      <div className="flex flex-col gap-3 sm:gap-4">
+        {/* Top Row: Back + Title */}
+        <div className="flex items-start gap-2 sm:gap-3">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate('/admin/documents')}
+            className="shrink-0 h-9 w-9 sm:h-10 sm:w-10"
+          >
+            <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{document.title}</h1>
-            <div className="flex flex-wrap items-center gap-2 mt-1">
-              <Badge variant="outline">{documentTypeLabels[document.document_type]}</Badge>
-              <Badge className={statusColors[document.status]}>{document.status}</Badge>
-              <span className="text-sm text-muted-foreground">v{document.version}</span>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg sm:text-xl lg:text-2xl font-bold tracking-tight truncate">
+              {document.title}
+            </h1>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1">
+              <Badge variant="outline" className="text-xs">
+                {documentTypeLabels[document.document_type]}
+              </Badge>
+              <Badge className={`${statusColors[document.status]} text-xs`}>
+                {document.status}
+              </Badge>
+              <span className="text-xs sm:text-sm text-muted-foreground">v{document.version}</span>
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        
+        {/* Action Buttons */}
+        <div className="flex flex-wrap gap-2">
           {document.status === 'draft' && (
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" size="sm" asChild className="flex-1 sm:flex-none">
               <Link to={`/admin/documents/${id}/edit`}>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
+                <Edit className="h-4 w-4 mr-1.5" />
+                <span className="sm:inline">Edit</span>
               </Link>
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={isExporting}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleExportPDF} 
+            disabled={isExporting}
+            className="flex-1 sm:flex-none"
+          >
             {isExporting ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
             ) : (
-              <Download className="h-4 w-4 mr-2" />
+              <Download className="h-4 w-4 mr-1.5" />
             )}
-            Export PDF
+            <span>PDF</span>
           </Button>
           {document.status === 'draft' && (
-            <Button size="sm">
-              <Send className="h-4 w-4 mr-2" />
-              Send
+            <Button size="sm" className="flex-1 sm:flex-none">
+              <Send className="h-4 w-4 mr-1.5" />
+              <span>Send</span>
             </Button>
           )}
         </div>
       </div>
 
       {/* Document Preview */}
-      <div ref={printRef} className="space-y-4">
+      <div ref={printRef} className="space-y-3 sm:space-y-4">
         {/* Meta Info Card */}
         <Card>
-          <CardContent className="pt-6">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="flex items-start gap-3">
-                <Building2 className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Client</p>
-                  <p className="font-medium">{document.clients?.company_name}</p>
+          <CardContent className="pt-4 sm:pt-6 pb-4 sm:pb-6">
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+              <div className="flex items-start gap-2 sm:gap-3">
+                <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground">Client</p>
+                  <p className="font-medium text-sm sm:text-base truncate">
+                    {document.clients?.company_name}
+                  </p>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Service Type</p>
-                  <p className="font-medium">{serviceTypeLabels[document.service_type]}</p>
+              <div className="flex items-start gap-2 sm:gap-3">
+                <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground">Service</p>
+                  <p className="font-medium text-sm sm:text-base truncate">
+                    {serviceTypeLabels[document.service_type]}
+                  </p>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div className="flex items-start gap-2 sm:gap-3">
+                <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Created</p>
-                  <p className="font-medium">{format(new Date(document.created_at), 'MMM d, yyyy')}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Created</p>
+                  <p className="font-medium text-sm sm:text-base">
+                    {format(new Date(document.created_at), 'MMM d, yyyy')}
+                  </p>
                 </div>
               </div>
               {document.expires_at && (
-                <div className="flex items-start gap-3">
-                  <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div className="flex items-start gap-2 sm:gap-3">
+                  <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Expires</p>
-                    <p className="font-medium">{format(new Date(document.expires_at), 'MMM d, yyyy')}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">Expires</p>
+                    <p className="font-medium text-sm sm:text-base">
+                      {format(new Date(document.expires_at), 'MMM d, yyyy')}
+                    </p>
                   </div>
                 </div>
               )}
@@ -540,19 +647,21 @@ const DocumentView = () => {
         {/* Sections */}
         {sections.length > 0 && (
           <Card>
-            <CardContent className="pt-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <FileText className="h-5 w-5" />
+            <CardContent className="pt-4 sm:pt-6 pb-4 sm:pb-6">
+              <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 flex items-center gap-2">
+                <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
                 Document Sections
               </h2>
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 {sections.map((section, idx) => (
                   <div key={section.key || idx}>
-                    <h3 className="font-medium text-base mb-2">{section.title}</h3>
-                    <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    <h3 className="font-medium text-sm sm:text-base mb-1.5 sm:mb-2">
+                      {section.title}
+                    </h3>
+                    <div className="text-xs sm:text-sm text-muted-foreground whitespace-pre-wrap">
                       {section.content}
                     </div>
-                    {idx < sections.length - 1 && <Separator className="mt-6" />}
+                    {idx < sections.length - 1 && <Separator className="mt-4 sm:mt-6" />}
                   </div>
                 ))}
               </div>
@@ -563,12 +672,52 @@ const DocumentView = () => {
         {/* Pricing */}
         {pricingItems.length > 0 && (
           <Card>
-            <CardContent className="pt-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <DollarSign className="h-5 w-5" />
+            <CardContent className="pt-4 sm:pt-6 pb-4 sm:pb-6">
+              <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 flex items-center gap-2">
+                <DollarSign className="h-4 w-4 sm:h-5 sm:w-5" />
                 Pricing & Investment
               </h2>
-              <div className="overflow-x-auto">
+              
+              {/* Mobile: Card View */}
+              <div className="block sm:hidden space-y-3">
+                {pricingItems.map((item) => (
+                  <div key={item.id} className="border rounded-lg p-3 bg-muted/20">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="font-medium text-sm">{item.name}</p>
+                      <p className="font-semibold text-sm">
+                        {formatCurrency(item.quantity * item.unitPrice)}
+                      </p>
+                    </div>
+                    {item.description && (
+                      <p className="text-xs text-muted-foreground mb-2">{item.description}</p>
+                    )}
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Qty: {item.quantity}</span>
+                      <span>@ {formatCurrency(item.unitPrice)}</span>
+                    </div>
+                  </div>
+                ))}
+                <Separator className="my-3" />
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span>{formatCurrency(pricingData.subtotal || 0)}</span>
+                  </div>
+                  {pricingData.discountAmount > 0 && (
+                    <div className="flex justify-between text-sm text-green-600">
+                      <span>Discount</span>
+                      <span>-{formatCurrency(pricingData.discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-base font-bold pt-1 border-t">
+                    <span>Total</span>
+                    <span>{formatCurrency(pricingData.total || 0)}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Desktop: Table View */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
@@ -618,12 +767,12 @@ const DocumentView = () => {
         {/* Compliance */}
         {document.compliance_confirmed && (
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <Shield className="h-5 w-5 text-green-600" />
+            <CardContent className="pt-4 sm:pt-6 pb-4 sm:pb-6">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 shrink-0" />
                 <div>
-                  <p className="font-medium">Compliance Confirmed</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="font-medium text-sm sm:text-base">Compliance Confirmed</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     This document meets all regulatory and compliance requirements.
                   </p>
                 </div>
@@ -635,57 +784,97 @@ const DocumentView = () => {
         {/* Signatures */}
         {signatures && signatures.length > 0 && (
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <PenTool className="h-5 w-5" />
+            <CardContent className="pt-4 sm:pt-6 pb-4 sm:pb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 sm:mb-4">
+                <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+                  <PenTool className="h-4 w-4 sm:h-5 sm:w-5" />
                   Signatures
                 </h2>
                 {document.status === 'signed' && (
-                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 w-fit text-xs">
                     <Lock className="h-3 w-3 mr-1" />
                     Document Locked
                   </Badge>
                 )}
               </div>
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {signatures.map((sig) => {
                   const signingUrl = `${window.location.origin}/sign/${id}?sig=${sig.id}`;
                   
                   return (
-                    <div key={sig.id} className="border rounded-lg p-4">
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <p className="text-sm text-muted-foreground">{sig.signer_role}</p>
-                          <p className="font-medium">{sig.signer_name}</p>
-                          <p className="text-sm text-muted-foreground">{sig.signer_email}</p>
+                    <div 
+                      key={sig.id} 
+                      className={`border rounded-lg p-3 sm:p-4 transition-colors ${
+                        !sig.signed_at && document.status !== 'signed' 
+                          ? 'hover:bg-muted/50 cursor-pointer' 
+                          : ''
+                      }`}
+                      onClick={() => {
+                        if (!sig.signed_at && document.status !== 'signed') {
+                          handleOpenSignatureSheet(sig);
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <Briefcase className="h-3 w-3 text-muted-foreground" />
+                            <p className="text-xs sm:text-sm text-muted-foreground">{sig.signer_role}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <User className="h-3.5 w-3.5 text-muted-foreground" />
+                            <p className="font-medium text-sm sm:text-base">{sig.signer_name}</p>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Mail className="h-3 w-3 text-muted-foreground" />
+                            <p className="text-xs sm:text-sm text-muted-foreground truncate">{sig.signer_email}</p>
+                          </div>
                         </div>
-                        {sig.signed_at ? (
-                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 w-fit">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Signed {format(new Date(sig.signed_at), 'MMM d, yyyy h:mm a')}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-amber-600 border-amber-300 w-fit">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Pending
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {sig.signed_at ? (
+                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 text-xs whitespace-nowrap">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              <span className="hidden xs:inline">Signed </span>
+                              {format(new Date(sig.signed_at), 'MMM d')}
+                            </Badge>
+                          ) : (
+                            <>
+                              <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
+                                <Clock className="h-3 w-3 mr-1" />
+                                Pending
+                              </Badge>
+                              {document.status !== 'signed' && (
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenSignatureSheet(sig);
+                                  }}
+                                >
+                                  <PenTool className="h-3 w-3 mr-1" />
+                                  Sign
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                       
                       {/* Show signature image if signed */}
                       {sig.signed_at && sig.signature_data && (
-                        <div className="mt-4 p-3 bg-muted/30 rounded-lg">
+                        <div className="mt-3 p-2 sm:p-3 bg-muted/30 rounded-lg">
                           <img 
                             src={sig.signature_data} 
                             alt={`Signature of ${sig.signer_name}`}
-                            className="h-16 object-contain"
+                            className="h-12 sm:h-16 object-contain"
                           />
-                          <div className="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                          <div className="mt-2 flex flex-wrap gap-2 sm:gap-4 text-xs text-muted-foreground">
                             {sig.ip_address && (
                               <span className="flex items-center gap-1">
                                 <Globe className="h-3 w-3" />
-                                IP: {sig.ip_address}
+                                <span className="truncate max-w-[120px]">IP: {sig.ip_address}</span>
                               </span>
                             )}
                             {sig.location_data?.city && (
@@ -707,7 +896,9 @@ const DocumentView = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
+                            className="h-8 shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               navigator.clipboard.writeText(signingUrl);
                               toast({ title: 'Signing link copied!' });
                             }}
@@ -724,6 +915,88 @@ const DocumentView = () => {
           </Card>
         )}
       </div>
+
+      {/* Signature Capture Sheet */}
+      <Sheet open={signatureSheetOpen} onOpenChange={setSignatureSheetOpen}>
+        <SheetContent side="bottom" className="h-auto max-h-[90vh] overflow-y-auto rounded-t-xl">
+          <SheetHeader className="pb-4">
+            <SheetTitle className="flex items-center gap-2">
+              <PenTool className="h-5 w-5" />
+              Capture Signature
+            </SheetTitle>
+            <SheetDescription>
+              Capture signature for {selectedSigner?.signer_name}
+            </SheetDescription>
+          </SheetHeader>
+          
+          {selectedSigner && (
+            <div className="space-y-4">
+              {/* Signer Info */}
+              <div className="bg-muted/50 rounded-lg p-4">
+                <div className="grid gap-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{selectedSigner.signer_name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">{selectedSigner.signer_email}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">{selectedSigner.signer_role}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Signature Canvas */}
+              <div className="border rounded-lg p-3 sm:p-4 bg-background">
+                <SignatureCanvas 
+                  ref={signatureCanvasRef}
+                  height={180}
+                />
+              </div>
+
+              {/* Legal Notice */}
+              <p className="text-xs text-muted-foreground text-center px-2">
+                By signing, you agree to the terms and conditions outlined in this document. 
+                Your IP address and timestamp will be recorded for audit purposes.
+              </p>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => {
+                    setSignatureSheetOpen(false);
+                    setSelectedSigner(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1"
+                  onClick={handleCaptureSignature}
+                  disabled={isSigning}
+                >
+                  {isSigning ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Confirm Signature
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
