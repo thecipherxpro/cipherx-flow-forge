@@ -256,6 +256,16 @@ const DocumentView = () => {
     }
   };
 
+  // Helper to convert hex color to RGB
+  const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 15, g: 23, b: 42 }; // Default dark color
+  };
+
   const handleExportPDF = async () => {
     if (!printRef.current || !document) return;
     
@@ -269,11 +279,15 @@ const DocumentView = () => {
       
       const primaryColor = companySettings?.primary_color || '#0F172A';
       const secondaryColor = companySettings?.secondary_color || '#3B82F6';
+      const primaryRgb = hexToRgb(primaryColor);
+      const secondaryRgb = hexToRgb(secondaryColor);
       
       // Helper to add text
       const addText = (text: string, x: number, y: number, options?: { fontSize?: number; color?: string; fontStyle?: string; maxWidth?: number }) => {
         pdf.setFontSize(options?.fontSize || 12);
-        pdf.setTextColor(options?.color || '#1f2937');
+        const textColor = options?.color || '#1f2937';
+        const textRgb = hexToRgb(textColor);
+        pdf.setTextColor(textRgb.r, textRgb.g, textRgb.b);
         if (options?.fontStyle) {
           pdf.setFont('helvetica', options.fontStyle);
         } else {
@@ -287,7 +301,7 @@ const DocumentView = () => {
       };
 
       // ===== COVER PAGE =====
-      pdf.setFillColor(primaryColor);
+      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
       pdf.rect(0, 0, pageWidth, 100, 'F');
       
       addText(companySettings?.company_name || 'CipherX Solutions', margin, 40, { 
@@ -307,7 +321,8 @@ const DocumentView = () => {
         maxWidth: contentWidth
       });
 
-      pdf.setFillColor('#f3f4f6');
+      const grayBgRgb = hexToRgb('#f3f4f6');
+      pdf.setFillColor(grayBgRgb.r, grayBgRgb.g, grayBgRgb.b);
       pdf.roundedRect(margin, 150, contentWidth, 50, 3, 3, 'F');
       
       addText('PREPARED FOR', margin + 10, 165, { fontSize: 10, color: '#6b7280', fontStyle: 'bold' });
@@ -330,7 +345,7 @@ const DocumentView = () => {
 
       addText('Status: ' + document.status.toUpperCase(), margin, 250, { fontSize: 12, fontStyle: 'bold' });
 
-      pdf.setFillColor(secondaryColor);
+      pdf.setFillColor(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b);
       pdf.rect(0, pageHeight - 30, pageWidth, 30, 'F');
       
       const companyAddress = [
@@ -369,7 +384,7 @@ const DocumentView = () => {
       sections.forEach((section, idx) => {
         pdf.addPage();
         
-        pdf.setFillColor(primaryColor);
+        pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
         pdf.rect(0, 0, pageWidth, 25, 'F');
         addText(`Section ${idx + 1}`, margin, 16, { fontSize: 10, color: '#ffffff' });
         
@@ -388,8 +403,9 @@ const DocumentView = () => {
           yPos += 6;
         });
 
+        const footerGrayRgb = hexToRgb('#9ca3af');
         pdf.setFontSize(9);
-        pdf.setTextColor('#9ca3af');
+        pdf.setTextColor(footerGrayRgb.r, footerGrayRgb.g, footerGrayRgb.b);
         pdf.text(`${document.title} | Page ${pdf.getNumberOfPages()}`, margin, pageHeight - 10);
       });
 
@@ -397,14 +413,15 @@ const DocumentView = () => {
       if (pricingItems.length > 0) {
         pdf.addPage();
         
-        pdf.setFillColor(primaryColor);
+        pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
         pdf.rect(0, 0, pageWidth, 25, 'F');
         addText('Investment', margin, 16, { fontSize: 10, color: '#ffffff' });
         
         addText('Pricing & Investment', margin, 45, { fontSize: 18, fontStyle: 'bold' });
 
         let tableY = 60;
-        pdf.setFillColor('#f3f4f6');
+        const tableHeaderRgb = hexToRgb('#f3f4f6');
+        pdf.setFillColor(tableHeaderRgb.r, tableHeaderRgb.g, tableHeaderRgb.b);
         pdf.rect(margin, tableY, contentWidth, 10, 'F');
         
         addText('Item', margin + 5, tableY + 7, { fontSize: 10, fontStyle: 'bold' });
@@ -423,7 +440,8 @@ const DocumentView = () => {
         });
 
         tableY += 5;
-        pdf.setDrawColor('#e5e7eb');
+        const lineColorRgb = hexToRgb('#e5e7eb');
+        pdf.setDrawColor(lineColorRgb.r, lineColorRgb.g, lineColorRgb.b);
         pdf.line(margin, tableY, margin + contentWidth, tableY);
         tableY += 10;
         
@@ -437,7 +455,7 @@ const DocumentView = () => {
         }
         
         tableY += 12;
-        pdf.setFillColor(primaryColor);
+        pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
         pdf.rect(margin + 100, tableY - 5, 70, 12, 'F');
         addText('Total:', margin + 110, tableY + 3, { fontSize: 12, fontStyle: 'bold', color: '#ffffff' });
         addText(formatCurrency(pricingData.total || 0), margin + 145, tableY + 3, { fontSize: 12, fontStyle: 'bold', color: '#ffffff' });
@@ -447,7 +465,7 @@ const DocumentView = () => {
       if (signatures && signatures.length > 0) {
         pdf.addPage();
         
-        pdf.setFillColor(primaryColor);
+        pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
         pdf.rect(0, 0, pageWidth, 25, 'F');
         addText('Signatures', margin, 16, { fontSize: 10, color: '#ffffff' });
         
@@ -456,7 +474,8 @@ const DocumentView = () => {
 
         let sigY = 80;
         signatures.forEach((sig) => {
-          pdf.setFillColor('#f9fafb');
+          const sigBoxRgb = hexToRgb('#f9fafb');
+          pdf.setFillColor(sigBoxRgb.r, sigBoxRgb.g, sigBoxRgb.b);
           pdf.roundedRect(margin, sigY, contentWidth, 40, 3, 3, 'F');
           
           addText(sig.signer_role, margin + 10, sigY + 12, { fontSize: 10, color: '#6b7280' });
@@ -476,7 +495,7 @@ const DocumentView = () => {
       // ===== AUDIT SUMMARY PAGE =====
       pdf.addPage();
       
-      pdf.setFillColor(primaryColor);
+      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
       pdf.rect(0, 0, pageWidth, 25, 'F');
       addText('Audit Trail', margin, 16, { fontSize: 10, color: '#ffffff' });
       
@@ -497,7 +516,8 @@ const DocumentView = () => {
       addText('Compliance Confirmed:', margin, 118, { fontSize: 10, fontStyle: 'bold' });
       addText(document.compliance_confirmed ? 'Yes' : 'No', margin + 50, 118, { fontSize: 10 });
 
-      pdf.setFillColor('#f3f4f6');
+      const footerBgRgb = hexToRgb('#f3f4f6');
+      pdf.setFillColor(footerBgRgb.r, footerBgRgb.g, footerBgRgb.b);
       pdf.rect(0, pageHeight - 25, pageWidth, 25, 'F');
       addText('This document was generated by ' + (companySettings?.company_name || 'CipherX Solutions'), margin, pageHeight - 12, { fontSize: 9, color: '#6b7280' });
       addText(format(new Date(), 'MMMM d, yyyy'), pageWidth - margin - 40, pageHeight - 12, { fontSize: 9, color: '#6b7280' });
