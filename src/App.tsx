@@ -33,6 +33,9 @@ import StaffDashboard from "@/pages/staff/Dashboard";
 // Portal pages
 import PortalDashboard from "@/pages/portal/Dashboard";
 
+// Public pages
+import SignDocument from "@/pages/SignDocument";
+
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +52,7 @@ const App = () => (
             <Route path="/" element={<Navigate to="/auth" replace />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/pending" element={<Pending />} />
+            <Route path="/sign/:documentId" element={<SignDocument />} />
 
             {/* Admin routes */}
             <Route path="/admin" element={
