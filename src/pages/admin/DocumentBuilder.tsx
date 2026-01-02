@@ -219,26 +219,34 @@ const DocumentBuilder = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Document Builder</h1>
-          <p className="text-muted-foreground">Create proposals, contracts, and SLAs</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Document Builder</h1>
+          <p className="text-sm text-muted-foreground">Create proposals, contracts, and SLAs</p>
         </div>
-        <Button variant="outline" onClick={() => navigate('/admin/documents')}>
+        <Button variant="outline" size="sm" onClick={() => navigate('/admin/documents')} className="w-full sm:w-auto">
           Cancel
         </Button>
       </div>
 
       {/* Progress Steps */}
       <Card>
-        <CardContent className="pt-6 pb-4">
-          <div className="flex items-center justify-between mb-4">
+        <CardContent className="pt-4 pb-3 sm:pt-6 sm:pb-4">
+          <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium">Step {currentStep} of {STEPS.length}</span>
-            <span className="text-sm text-muted-foreground">{Math.round((currentStep / STEPS.length) * 100)}% Complete</span>
+            <span className="text-sm text-muted-foreground">{Math.round((currentStep / STEPS.length) * 100)}%</span>
           </div>
-          <Progress value={(currentStep / STEPS.length) * 100} className="h-2 mb-4" />
-          <div className="grid grid-cols-8 gap-1">
+          <Progress value={(currentStep / STEPS.length) * 100} className="h-2 mb-3" />
+          
+          {/* Mobile: Show current step name */}
+          <div className="sm:hidden text-center">
+            <span className="text-sm font-medium text-primary">{STEPS[currentStep - 1].name}</span>
+          </div>
+          
+          {/* Desktop: Show all steps */}
+          <div className="hidden sm:grid grid-cols-8 gap-1">
             {STEPS.map((step) => (
               <button
                 key={step.id}
@@ -253,7 +261,27 @@ const DocumentBuilder = () => {
                 }`}
               >
                 <div className="text-xs font-medium">{step.id}</div>
-                <div className="text-[10px] truncate hidden sm:block">{step.name.split(' ')[0]}</div>
+                <div className="text-[10px] truncate">{step.name.split(' ')[0]}</div>
+              </button>
+            ))}
+          </div>
+          
+          {/* Mobile: Horizontal scrollable step indicators */}
+          <div className="sm:hidden flex gap-1 mt-3 overflow-x-auto pb-1">
+            {STEPS.map((step) => (
+              <button
+                key={step.id}
+                onClick={() => step.id < currentStep && setCurrentStep(step.id)}
+                disabled={step.id > currentStep}
+                className={`flex-shrink-0 w-8 h-8 rounded-full text-xs font-medium transition-colors ${
+                  step.id === currentStep 
+                    ? 'bg-primary text-primary-foreground' 
+                    : step.id < currentStep 
+                      ? 'bg-primary/10 text-primary' 
+                      : 'bg-muted/50 text-muted-foreground/50'
+                }`}
+              >
+                {step.id}
               </button>
             ))}
           </div>
@@ -261,13 +289,13 @@ const DocumentBuilder = () => {
       </Card>
 
       {/* Step Content */}
-      <Card className="min-h-[400px]">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+      <Card className="min-h-[300px] sm:min-h-[400px]">
+        <CardHeader className="pb-3 sm:pb-6">
+          <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
             <FileText className="h-5 w-5" />
             {STEPS[currentStep - 1].name}
           </CardTitle>
-          <CardDescription>{STEPS[currentStep - 1].description}</CardDescription>
+          <CardDescription className="text-sm">{STEPS[currentStep - 1].description}</CardDescription>
         </CardHeader>
         <CardContent>
           {renderStep()}
@@ -275,23 +303,23 @@ const DocumentBuilder = () => {
       </Card>
 
       {/* Navigation */}
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={handleBack} disabled={currentStep === 1}>
+      <div className="flex flex-col sm:flex-row justify-between gap-3">
+        <Button variant="outline" onClick={handleBack} disabled={currentStep === 1} className="order-2 sm:order-1">
           <ChevronLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleSaveDraft} disabled={isSaving || !selectedClient}>
+        <div className="flex flex-col sm:flex-row gap-2 order-1 sm:order-2">
+          <Button variant="outline" onClick={handleSaveDraft} disabled={isSaving || !selectedClient} className="w-full sm:w-auto">
             <Save className="h-4 w-4 mr-2" />
             Save Draft
           </Button>
           {currentStep === STEPS.length ? (
-            <Button onClick={handleSend} disabled={!canProceed() || isSaving}>
+            <Button onClick={handleSend} disabled={!canProceed() || isSaving} className="w-full sm:w-auto">
               <Send className="h-4 w-4 mr-2" />
               Send for Signature
             </Button>
           ) : (
-            <Button onClick={handleNext} disabled={!canProceed()}>
+            <Button onClick={handleNext} disabled={!canProceed()} className="w-full sm:w-auto">
               Next
               <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
