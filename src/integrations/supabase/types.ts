@@ -144,6 +144,78 @@ export type Database = {
         }
         Relationships: []
       }
+      company_settings: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          company_name: string
+          country: string | null
+          created_at: string
+          default_payment_terms: number | null
+          default_tax_rate: number | null
+          email: string | null
+          footer_text: string | null
+          id: string
+          legal_name: string | null
+          logo_url: string | null
+          phone: string | null
+          postal_code: string | null
+          primary_color: string | null
+          province: string | null
+          secondary_color: string | null
+          tax_number: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          company_name?: string
+          country?: string | null
+          created_at?: string
+          default_payment_terms?: number | null
+          default_tax_rate?: number | null
+          email?: string | null
+          footer_text?: string | null
+          id?: string
+          legal_name?: string | null
+          logo_url?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          primary_color?: string | null
+          province?: string | null
+          secondary_color?: string | null
+          tax_number?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          company_name?: string
+          country?: string | null
+          created_at?: string
+          default_payment_terms?: number | null
+          default_tax_rate?: number | null
+          email?: string | null
+          footer_text?: string | null
+          id?: string
+          legal_name?: string | null
+          logo_url?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          primary_color?: string | null
+          province?: string | null
+          secondary_color?: string | null
+          tax_number?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
       document_audit_log: {
         Row: {
           action: string
