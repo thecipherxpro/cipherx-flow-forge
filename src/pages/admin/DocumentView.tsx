@@ -36,10 +36,10 @@ import {
   Globe,
   User,
   Mail,
-  Briefcase
+  Briefcase,
+  Printer
 } from 'lucide-react';
 import { format } from 'date-fns';
-import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
 interface DocumentSection {
@@ -92,6 +92,13 @@ interface CompanySettings {
   primary_color: string | null;
   secondary_color: string | null;
   footer_text: string | null;
+  tax_number: string | null;
+}
+
+interface ClientContact {
+  full_name: string;
+  email: string;
+  job_title: string | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -106,6 +113,12 @@ const documentTypeLabels: Record<string, string> = {
   proposal: 'Proposal',
   contract: 'Contract',
   sla: 'Service Level Agreement'
+};
+
+const documentTypePrefixes: Record<string, string> = {
+  proposal: 'PROP',
+  contract: 'CONT',
+  sla: 'SLA'
 };
 
 const serviceTypeLabels: Record<string, string> = {
@@ -124,6 +137,7 @@ const DocumentView = () => {
   const printRef = useRef<HTMLDivElement>(null);
   const signatureCanvasRef = useRef<SignatureCanvasRef>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [signatureSheetOpen, setSignatureSheetOpen] = useState(false);
   const [selectedSigner, setSelectedSigner] = useState<Signature | null>(null);
   const [isSigning, setIsSigning] = useState(false);
@@ -133,13 +147,28 @@ const DocumentView = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('documents')
-        .select('*, clients(company_name, address_line1, city, province, postal_code, country)')
+        .select('*, clients(company_name, address_line1, address_line2, city, province, postal_code, country, phone)')
         .eq('id', id)
         .single();
       if (error) throw error;
       return data;
     },
     enabled: !!id
+  });
+
+  const { data: clientContact } = useQuery({
+    queryKey: ['client-contact', document?.client_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('client_contacts')
+        .select('full_name, email, job_title')
+        .eq('client_id', document?.client_id)
+        .eq('is_primary', true)
+        .single();
+      if (error) return null;
+      return data as ClientContact;
+    },
+    enabled: !!document?.client_id
   });
 
   const { data: signatures, refetch: refetchSignatures } = useQuery({
@@ -263,11 +292,159 @@ const DocumentView = () => {
       r: parseInt(result[1], 16),
       g: parseInt(result[2], 16),
       b: parseInt(result[3], 16)
-    } : { r: 15, g: 23, b: 42 }; // Default dark color
+    } : { r: 15, g: 23, b: 42 };
+  };
+
+  // Generate document number
+  const generateDocumentNumber = () => {
+    const prefix = documentTypePrefixes[document?.document_type || 'contract'] || 'DOC';
+    const year = new Date(document?.created_at || new Date()).getFullYear();
+    const idSuffix = (document?.id || '').slice(-3).toUpperCase();
+    return `${prefix}-${year}-${idSuffix || '001'}`;
+  };
+
+  // Parse rich text and render to PDF
+  const parseRichText = (
+    pdf: jsPDF,
+    content: string,
+    startX: number,
+    startY: number,
+    maxWidth: number,
+    pageHeight: number,
+    margin: number,
+    primaryColor: string,
+    addPageHeader: (p: jsPDF) => void
+  ): number => {
+    const primaryRgb = hexToRgb(primaryColor);
+    let yPos = startY;
+    const lineHeight = 6;
+    const paragraphSpacing = 10;
+    
+    const lines = content.split('\n');
+    
+    for (const line of lines) {
+      // Check for page break
+      if (yPos > pageHeight - 40) {
+        pdf.addPage();
+        addPageHeader(pdf);
+        yPos = 45;
+      }
+
+      // Headers
+      if (line.startsWith('### ')) {
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
+        pdf.text(line.replace('### ', ''), startX, yPos);
+        yPos += lineHeight + 4;
+        continue;
+      }
+      if (line.startsWith('## ')) {
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
+        pdf.text(line.replace('## ', ''), startX, yPos);
+        yPos += lineHeight + 6;
+        continue;
+      }
+      if (line.startsWith('# ')) {
+        pdf.setFontSize(16);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
+        pdf.text(line.replace('# ', ''), startX, yPos);
+        yPos += lineHeight + 8;
+        continue;
+      }
+
+      // Horizontal rule
+      if (line.trim() === '---' || line.trim() === '***') {
+        pdf.setDrawColor(200, 200, 200);
+        pdf.line(startX, yPos, startX + maxWidth, yPos);
+        yPos += 8;
+        continue;
+      }
+
+      // Bullet points
+      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+        pdf.setFontSize(11);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(31, 41, 55);
+        const bulletText = line.replace(/^[\s]*[-*]\s/, '');
+        const wrappedText = pdf.splitTextToSize(bulletText, maxWidth - 10);
+        
+        pdf.text('•', startX, yPos);
+        wrappedText.forEach((textLine: string, idx: number) => {
+          if (yPos > pageHeight - 40) {
+            pdf.addPage();
+            addPageHeader(pdf);
+            yPos = 45;
+          }
+          pdf.text(textLine, startX + 6, yPos);
+          yPos += lineHeight;
+        });
+        continue;
+      }
+
+      // Numbered list
+      const numberedMatch = line.trim().match(/^(\d+)\.\s(.+)/);
+      if (numberedMatch) {
+        pdf.setFontSize(11);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(31, 41, 55);
+        const numText = numberedMatch[2];
+        const wrappedText = pdf.splitTextToSize(numText, maxWidth - 12);
+        
+        pdf.text(`${numberedMatch[1]}.`, startX, yPos);
+        wrappedText.forEach((textLine: string, idx: number) => {
+          if (yPos > pageHeight - 40) {
+            pdf.addPage();
+            addPageHeader(pdf);
+            yPos = 45;
+          }
+          pdf.text(textLine, startX + 8, yPos);
+          yPos += lineHeight;
+        });
+        continue;
+      }
+
+      // Empty line
+      if (line.trim() === '') {
+        yPos += paragraphSpacing / 2;
+        continue;
+      }
+
+      // Regular paragraph with bold/italic support
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(31, 41, 55);
+
+      // Handle bold text
+      let processedLine = line;
+      if (processedLine.includes('**')) {
+        // Simple approach: render without markdown symbols
+        processedLine = processedLine.replace(/\*\*(.+?)\*\*/g, '$1');
+      }
+      if (processedLine.includes('*')) {
+        processedLine = processedLine.replace(/\*(.+?)\*/g, '$1');
+      }
+
+      const wrappedLines = pdf.splitTextToSize(processedLine, maxWidth);
+      wrappedLines.forEach((textLine: string) => {
+        if (yPos > pageHeight - 40) {
+          pdf.addPage();
+          addPageHeader(pdf);
+          yPos = 45;
+        }
+        pdf.text(textLine, startX, yPos);
+        yPos += lineHeight;
+      });
+    }
+
+    return yPos;
   };
 
   const handleExportPDF = async () => {
-    if (!printRef.current || !document) return;
+    if (!document) return;
     
     setIsExporting(true);
     try {
@@ -277,253 +454,587 @@ const DocumentView = () => {
       const margin = 20;
       const contentWidth = pageWidth - (margin * 2);
       
-      const primaryColor = companySettings?.primary_color || '#0F172A';
-      const secondaryColor = companySettings?.secondary_color || '#3B82F6';
+      const primaryColor = companySettings?.primary_color || '#6B21A8';
+      const secondaryColor = companySettings?.secondary_color || '#A855F7';
       const primaryRgb = hexToRgb(primaryColor);
       const secondaryRgb = hexToRgb(secondaryColor);
-      
-      // Helper to add text
-      const addText = (text: string | null | undefined, x: number, y: number, options?: { fontSize?: number; color?: string; fontStyle?: string; maxWidth?: number }) => {
-        const safeText = text || '';
-        pdf.setFontSize(options?.fontSize || 12);
-        const textColor = options?.color || '#1f2937';
-        const textRgb = hexToRgb(textColor);
-        pdf.setTextColor(textRgb.r, textRgb.g, textRgb.b);
-        if (options?.fontStyle) {
-          pdf.setFont('helvetica', options.fontStyle);
-        } else {
-          pdf.setFont('helvetica', 'normal');
-        }
-        if (options?.maxWidth) {
-          pdf.text(safeText, x, y, { maxWidth: options.maxWidth });
-        } else {
-          pdf.text(safeText, x, y);
-        }
-      };
 
-      // ===== COVER PAGE =====
+      // ===== PAGE 1: COVER PAGE =====
+      // Full page gradient background
       pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.rect(0, 0, pageWidth, 100, 'F');
+      pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+
+      // Company logo placeholder circle
+      pdf.setFillColor(255, 255, 255);
+      pdf.circle(pageWidth / 2, 50, 20, 'F');
       
-      addText(companySettings?.company_name || 'CipherX Solutions', margin, 40, { 
-        fontSize: 28, 
-        color: '#ffffff',
-        fontStyle: 'bold'
-      });
-      
-      addText(documentTypeLabels[document.document_type] || document.document_type, margin, 55, { 
-        fontSize: 16, 
-        color: '#ffffff' 
-      });
+      // Company initials in circle
+      const initials = (companySettings?.company_name || 'CX').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+      pdf.setFontSize(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
+      pdf.text(initials, pageWidth / 2, 55, { align: 'center' });
 
-      addText(document.title, margin, 130, { 
-        fontSize: 24, 
-        fontStyle: 'bold',
-        maxWidth: contentWidth
-      });
+      // Company name
+      pdf.setFontSize(28);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(255, 255, 255);
+      pdf.text(companySettings?.company_name || 'Company Name', pageWidth / 2, 90, { align: 'center' });
 
-      const grayBgRgb = hexToRgb('#f3f4f6');
-      pdf.setFillColor(grayBgRgb.r, grayBgRgb.g, grayBgRgb.b);
-      pdf.roundedRect(margin, 150, contentWidth, 50, 3, 3, 'F');
-      
-      addText('PREPARED FOR', margin + 10, 165, { fontSize: 10, color: '#6b7280', fontStyle: 'bold' });
-      addText(document.clients?.company_name || 'Client', margin + 10, 178, { fontSize: 16, fontStyle: 'bold' });
-      
-      const clientAddress = [
-        document.clients?.address_line1,
-        document.clients?.city,
-        document.clients?.province,
-        document.clients?.postal_code
-      ].filter(Boolean).join(', ');
-      if (clientAddress) {
-        addText(clientAddress, margin + 10, 190, { fontSize: 10, color: '#6b7280' });
-      }
+      // Tagline
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(255, 255, 255);
+      pdf.text('Enterprise Technology Solutions', pageWidth / 2, 100, { align: 'center' });
 
-      addText('Date: ' + format(new Date(document.created_at), 'MMMM d, yyyy'), margin, 220, { fontSize: 12 });
-      if (document.expires_at) {
-        addText('Valid Until: ' + format(new Date(document.expires_at), 'MMMM d, yyyy'), margin, 232, { fontSize: 12 });
-      }
+      // White content area
+      pdf.setFillColor(255, 255, 255);
+      pdf.roundedRect(margin, 120, contentWidth, 110, 5, 5, 'F');
 
-      addText('Status: ' + document.status.toUpperCase(), margin, 250, { fontSize: 12, fontStyle: 'bold' });
-
+      // Document type badge
+      const docTypeText = documentTypeLabels[document.document_type]?.toUpperCase() || 'DOCUMENT';
       pdf.setFillColor(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b);
-      pdf.rect(0, pageHeight - 30, pageWidth, 30, 'F');
-      
-      const companyAddress = [
-        companySettings?.address_line1,
-        companySettings?.city,
-        companySettings?.province,
-        companySettings?.postal_code
-      ].filter(Boolean).join(' • ');
-      
-      addText(companyAddress || '', margin, pageHeight - 15, { fontSize: 9, color: '#ffffff' });
-      addText(companySettings?.email || '', pageWidth - margin - 50, pageHeight - 15, { fontSize: 9, color: '#ffffff' });
+      const badgeWidth = pdf.getTextWidth(docTypeText) * 0.4 + 16;
+      pdf.roundedRect(margin + 15, 130, badgeWidth, 10, 2, 2, 'F');
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(255, 255, 255);
+      pdf.text(docTypeText, margin + 15 + badgeWidth / 2, 137, { align: 'center' });
 
-      // ===== TABLE OF CONTENTS =====
+      // Document title
+      pdf.setFontSize(22);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(31, 41, 55);
+      const titleLines = pdf.splitTextToSize(document.title, contentWidth - 30);
+      pdf.text(titleLines, margin + 15, 160);
+
+      // Prepared for section
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(107, 114, 128);
+      pdf.text('PREPARED FOR', margin + 15, 185);
+
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(31, 41, 55);
+      pdf.text(document.clients?.company_name || 'Client', margin + 15, 195);
+
+      // Date section
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(107, 114, 128);
+      pdf.text('DATE: ' + format(new Date(document.created_at), 'MMMM d, yyyy'), margin + 15, 210);
+
+      if (document.expires_at) {
+        pdf.text('VALID UNTIL: ' + format(new Date(document.expires_at), 'MMMM d, yyyy'), margin + 15, 218);
+      }
+
+      // Footer section on cover
+      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
+      pdf.rect(0, pageHeight - 45, pageWidth, 45, 'F');
+
+      // Company contact info in footer
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(255, 255, 255);
+      
+      let footerY = pageHeight - 35;
+      if (companySettings?.address_line1) {
+        const fullAddress = [
+          companySettings.address_line1,
+          companySettings.address_line2,
+          [companySettings.city, companySettings.province, companySettings.postal_code].filter(Boolean).join(', '),
+          companySettings.country
+        ].filter(Boolean).join(' • ');
+        pdf.text(fullAddress, pageWidth / 2, footerY, { align: 'center' });
+        footerY += 7;
+      }
+      
+      const contactLine = [
+        companySettings?.phone,
+        companySettings?.email,
+        companySettings?.website
+      ].filter(Boolean).join(' • ');
+      if (contactLine) {
+        pdf.text(contactLine, pageWidth / 2, footerY, { align: 'center' });
+        footerY += 7;
+      }
+
+      if (companySettings?.tax_number) {
+        pdf.text(`HST/GST: ${companySettings.tax_number}`, pageWidth / 2, footerY, { align: 'center' });
+      }
+
+      // ===== PAGE 2: DOCUMENT INFO PAGE (Matching reference image) =====
+      pdf.addPage();
+
+      // Header bar with purple accent
+      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
+      pdf.rect(0, 0, 8, 40, 'F');
+      
+      // Company name in header
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
+      pdf.text(companySettings?.company_name || 'Company', 15, 18);
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(107, 114, 128);
+      pdf.text('Enterprise Technology Solutions', 15, 26);
+
+      // Document number (top right)
+      const docNumber = generateDocumentNumber();
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(31, 41, 55);
+      pdf.text(docNumber, pageWidth - margin, 18, { align: 'right' });
+
+      // Separator line
+      pdf.setDrawColor(229, 231, 235);
+      pdf.line(margin, 45, pageWidth - margin, 45);
+
+      // Document type badge
+      pdf.setFillColor(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b);
+      const typeBadgeText = (documentTypeLabels[document.document_type] || 'Document').toUpperCase();
+      const typeBadgeWidth = pdf.getTextWidth(typeBadgeText) * 0.35 + 20;
+      pdf.roundedRect(margin, 55, typeBadgeWidth, 12, 3, 3, 'F');
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(255, 255, 255);
+      pdf.text(typeBadgeText, margin + typeBadgeWidth / 2, 63, { align: 'center' });
+
+      // Document title (large)
+      pdf.setFontSize(26);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(31, 41, 55);
+      const mainTitle = pdf.splitTextToSize(document.title, contentWidth);
+      pdf.text(mainTitle, margin, 90);
+
+      // Service type
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b);
+      pdf.text(serviceTypeLabels[document.service_type] || document.service_type, margin, 105);
+
+      // Client section
+      pdf.setFillColor(249, 250, 251);
+      pdf.roundedRect(margin, 120, contentWidth, 70, 4, 4, 'F');
+
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(107, 114, 128);
+      pdf.text('PREPARED FOR', margin + 15, 138);
+
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(31, 41, 55);
+      pdf.text(document.clients?.company_name || 'Client', margin + 15, 152);
+
+      // Contact person
+      if (clientContact?.full_name) {
+        pdf.setFontSize(11);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(55, 65, 81);
+        pdf.text(clientContact.full_name, margin + 15, 164);
+        if (clientContact.job_title) {
+          pdf.setFontSize(10);
+          pdf.setTextColor(107, 114, 128);
+          pdf.text(clientContact.job_title, margin + 15, 172);
+        }
+      }
+
+      // Client address
+      const clientFullAddress = [
+        document.clients?.address_line1,
+        [document.clients?.city, document.clients?.province, document.clients?.postal_code].filter(Boolean).join(', ')
+      ].filter(Boolean).join('\n');
+      
+      if (clientFullAddress) {
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(107, 114, 128);
+        const addressLines = clientFullAddress.split('\n');
+        let addrY = clientContact?.full_name ? 182 : 164;
+        addressLines.forEach(line => {
+          pdf.text(line, margin + 15, addrY);
+          addrY += 6;
+        });
+      }
+
+      // Date boxes
+      const dateBoxY = 205;
+      const dateBoxWidth = (contentWidth - 10) / 2;
+
+      // Date Issued box
+      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
+      pdf.roundedRect(margin, dateBoxY, dateBoxWidth, 35, 4, 4, 'F');
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(255, 255, 255);
+      pdf.text('DATE ISSUED', margin + 10, dateBoxY + 14);
+      pdf.setFontSize(14);
+      pdf.text(format(new Date(document.created_at), 'MMMM d, yyyy'), margin + 10, dateBoxY + 26);
+
+      // Valid Until box
+      pdf.setFillColor(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b);
+      pdf.roundedRect(margin + dateBoxWidth + 10, dateBoxY, dateBoxWidth, 35, 4, 4, 'F');
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(255, 255, 255);
+      pdf.text('VALID UNTIL', margin + dateBoxWidth + 20, dateBoxY + 14);
+      pdf.setFontSize(14);
+      const validUntil = document.expires_at 
+        ? format(new Date(document.expires_at), 'MMMM d, yyyy') 
+        : 'No expiration';
+      pdf.text(validUntil, margin + dateBoxWidth + 20, dateBoxY + 26);
+
+      // Footer on page 2
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(156, 163, 175);
+      pdf.text(`${companySettings?.company_name || 'Company'} • ${docNumber}`, margin, pageHeight - 15);
+      pdf.text('Page 2', pageWidth - margin, pageHeight - 15, { align: 'right' });
+
+      // ===== PAGE 3: TABLE OF CONTENTS =====
       pdf.addPage();
       
-      addText('Table of Contents', margin, 30, { fontSize: 22, fontStyle: 'bold' });
-      
+      // Header
+      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
+      pdf.rect(0, 0, pageWidth, 30, 'F');
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(255, 255, 255);
+      pdf.text('TABLE OF CONTENTS', margin, 20);
+
+      // TOC entries
       let tocY = 50;
-      let pageNumber = 3;
-      
-      sections.forEach((section, idx) => {
-        addText(`${idx + 1}. ${section.title}`, margin, tocY, { fontSize: 12 });
-        addText(`${pageNumber}`, pageWidth - margin - 10, tocY, { fontSize: 12, color: '#6b7280' });
-        tocY += 12;
+      let pageNumber = 4;
+      const tocSections = [...sections];
+
+      tocSections.forEach((section, idx) => {
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(31, 41, 55);
         
-        if ((section.content?.length || 0) > 1000) pageNumber++;
+        // Section number and title
+        pdf.text(`${idx + 1}.`, margin, tocY);
+        pdf.text(section.title, margin + 10, tocY);
+        
+        // Dotted line
+        pdf.setDrawColor(200, 200, 200);
+        const titleWidth = pdf.getTextWidth(section.title);
+        const dotsStart = margin + 15 + titleWidth;
+        const dotsEnd = pageWidth - margin - 15;
+        for (let x = dotsStart; x < dotsEnd; x += 3) {
+          pdf.circle(x, tocY - 1, 0.3, 'F');
+        }
+        
+        // Page number
+        pdf.text(pageNumber.toString(), pageWidth - margin, tocY, { align: 'right' });
+        
+        tocY += 12;
         pageNumber++;
       });
 
-      tocY += 10;
-      addText(`${sections.length + 1}. Pricing & Investment`, margin, tocY, { fontSize: 12 });
-      tocY += 12;
-      addText(`${sections.length + 2}. Signatures`, margin, tocY, { fontSize: 12 });
+      // Add pricing and signatures to TOC
+      tocY += 5;
+      if (pricingItems.length > 0) {
+        pdf.text(`${tocSections.length + 1}.`, margin, tocY);
+        pdf.text('Pricing & Investment', margin + 10, tocY);
+        pdf.text(pageNumber.toString(), pageWidth - margin, tocY, { align: 'right' });
+        tocY += 12;
+        pageNumber++;
+      }
+      
+      if (signatures && signatures.length > 0) {
+        pdf.text(`${tocSections.length + (pricingItems.length > 0 ? 2 : 1)}.`, margin, tocY);
+        pdf.text('Signatures', margin + 10, tocY);
+        pdf.text(pageNumber.toString(), pageWidth - margin, tocY, { align: 'right' });
+      }
+
+      // Footer
+      pdf.setFontSize(9);
+      pdf.setTextColor(156, 163, 175);
+      pdf.text(`${companySettings?.company_name || 'Company'} • ${docNumber}`, margin, pageHeight - 15);
+      pdf.text('Page 3', pageWidth - margin, pageHeight - 15, { align: 'right' });
+
+      // Helper for page headers
+      const addSectionHeader = (p: jsPDF, title: string, sectionNum: number) => {
+        p.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
+        p.rect(0, 0, pageWidth, 30, 'F');
+        p.setFontSize(10);
+        p.setFont('helvetica', 'normal');
+        p.setTextColor(255, 255, 255);
+        p.text(`Section ${sectionNum}`, margin, 14);
+        p.setFontSize(12);
+        p.setFont('helvetica', 'bold');
+        p.text(title, margin, 23);
+      };
 
       // ===== CONTENT PAGES =====
+      let currentPage = 4;
       sections.forEach((section, idx) => {
         pdf.addPage();
+        addSectionHeader(pdf, section.title, idx + 1);
         
-        pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        pdf.rect(0, 0, pageWidth, 25, 'F');
-        addText(`Section ${idx + 1}`, margin, 16, { fontSize: 10, color: '#ffffff' });
-        
-        addText(section.title, margin, 45, { fontSize: 18, fontStyle: 'bold' });
-        
-        const content = section.content || '';
-        const lines = pdf.splitTextToSize(content, contentWidth);
-        
-        let yPos = 60;
-        lines.forEach((line: string) => {
-          if (yPos > pageHeight - 40) {
-            pdf.addPage();
-            yPos = 30;
-          }
-          addText(line, margin, yPos, { fontSize: 11 });
-          yPos += 6;
-        });
+        // Section content with rich text parsing
+        const addPageHeaderFn = (p: jsPDF) => {
+          addSectionHeader(p, section.title + ' (continued)', idx + 1);
+        };
 
-        const footerGrayRgb = hexToRgb('#9ca3af');
+        parseRichText(
+          pdf,
+          section.content || '',
+          margin,
+          45,
+          contentWidth,
+          pageHeight,
+          margin,
+          primaryColor,
+          addPageHeaderFn
+        );
+
+        // Footer
         pdf.setFontSize(9);
-        pdf.setTextColor(footerGrayRgb.r, footerGrayRgb.g, footerGrayRgb.b);
-        pdf.text(`${document.title} | Page ${pdf.getNumberOfPages()}`, margin, pageHeight - 10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(156, 163, 175);
+        pdf.text(`${document.title} • ${companySettings?.company_name || 'Company'}`, margin, pageHeight - 15);
+        pdf.text(`Page ${currentPage}`, pageWidth - margin, pageHeight - 15, { align: 'right' });
+        currentPage++;
       });
 
       // ===== PRICING PAGE =====
       if (pricingItems.length > 0) {
         pdf.addPage();
         
+        // Header
         pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        pdf.rect(0, 0, pageWidth, 25, 'F');
-        addText('Investment', margin, 16, { fontSize: 10, color: '#ffffff' });
-        
-        addText('Pricing & Investment', margin, 45, { fontSize: 18, fontStyle: 'bold' });
+        pdf.rect(0, 0, pageWidth, 30, 'F');
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(255, 255, 255);
+        pdf.text('PRICING & INVESTMENT', margin, 20);
 
-        let tableY = 60;
-        const tableHeaderRgb = hexToRgb('#f3f4f6');
-        pdf.setFillColor(tableHeaderRgb.r, tableHeaderRgb.g, tableHeaderRgb.b);
-        pdf.rect(margin, tableY, contentWidth, 10, 'F');
+        let tableY = 50;
         
-        addText('Item', margin + 5, tableY + 7, { fontSize: 10, fontStyle: 'bold' });
-        addText('Qty', margin + 90, tableY + 7, { fontSize: 10, fontStyle: 'bold' });
-        addText('Unit Price', margin + 110, tableY + 7, { fontSize: 10, fontStyle: 'bold' });
-        addText('Total', margin + 145, tableY + 7, { fontSize: 10, fontStyle: 'bold' });
+        // Table header
+        pdf.setFillColor(243, 244, 246);
+        pdf.rect(margin, tableY, contentWidth, 12, 'F');
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(55, 65, 81);
+        pdf.text('Item', margin + 5, tableY + 8);
+        pdf.text('Description', margin + 55, tableY + 8);
+        pdf.text('Qty', margin + 115, tableY + 8);
+        pdf.text('Unit Price', margin + 130, tableY + 8);
+        pdf.text('Total', pageWidth - margin - 5, tableY + 8, { align: 'right' });
         
-        tableY += 15;
-        
-        pricingItems.forEach((item) => {
-          addText(item.name, margin + 5, tableY, { fontSize: 10, maxWidth: 80 });
-          addText(item.quantity.toString(), margin + 90, tableY, { fontSize: 10 });
-          addText(formatCurrency(item.unitPrice), margin + 110, tableY, { fontSize: 10 });
-          addText(formatCurrency(item.quantity * item.unitPrice), margin + 145, tableY, { fontSize: 10 });
-          tableY += 10;
+        tableY += 16;
+
+        // Table rows
+        pricingItems.forEach((item, idx) => {
+          if (idx % 2 === 0) {
+            pdf.setFillColor(249, 250, 251);
+            pdf.rect(margin, tableY - 4, contentWidth, 14, 'F');
+          }
+          
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(31, 41, 55);
+          
+          const itemName = item.name.length > 20 ? item.name.slice(0, 18) + '...' : item.name;
+          pdf.text(itemName, margin + 5, tableY + 4);
+          
+          const desc = (item.description || '').length > 25 ? (item.description || '').slice(0, 23) + '...' : (item.description || '');
+          pdf.setTextColor(107, 114, 128);
+          pdf.text(desc, margin + 55, tableY + 4);
+          
+          pdf.setTextColor(31, 41, 55);
+          pdf.text(item.quantity.toString(), margin + 115, tableY + 4);
+          pdf.text(formatCurrency(item.unitPrice), margin + 130, tableY + 4);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(formatCurrency(item.quantity * item.unitPrice), pageWidth - margin - 5, tableY + 4, { align: 'right' });
+          
+          tableY += 14;
         });
 
-        tableY += 5;
-        const lineColorRgb = hexToRgb('#e5e7eb');
-        pdf.setDrawColor(lineColorRgb.r, lineColorRgb.g, lineColorRgb.b);
-        pdf.line(margin, tableY, margin + contentWidth, tableY);
+        // Totals section
         tableY += 10;
-        
-        addText('Subtotal:', margin + 110, tableY, { fontSize: 11 });
-        addText(formatCurrency(pricingData.subtotal || 0), margin + 145, tableY, { fontSize: 11 });
-        
+        pdf.setDrawColor(229, 231, 235);
+        pdf.line(margin + 100, tableY, pageWidth - margin, tableY);
+        tableY += 10;
+
+        // Subtotal
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(107, 114, 128);
+        pdf.text('Subtotal', margin + 130, tableY);
+        pdf.setTextColor(31, 41, 55);
+        pdf.text(formatCurrency(pricingData.subtotal || 0), pageWidth - margin - 5, tableY, { align: 'right' });
+        tableY += 10;
+
+        // Discount
         if (pricingData.discountAmount > 0) {
+          pdf.setTextColor(22, 163, 74);
+          pdf.text(`Discount (${pricingData.discountPercent || 0}%)`, margin + 130, tableY);
+          pdf.text('-' + formatCurrency(pricingData.discountAmount), pageWidth - margin - 5, tableY, { align: 'right' });
           tableY += 10;
-          addText('Discount:', margin + 110, tableY, { fontSize: 11, color: '#16a34a' });
-          addText('-' + formatCurrency(pricingData.discountAmount), margin + 145, tableY, { fontSize: 11, color: '#16a34a' });
         }
-        
-        tableY += 12;
+
+        // Total
+        tableY += 5;
         pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        pdf.rect(margin + 100, tableY - 5, 70, 12, 'F');
-        addText('Total:', margin + 110, tableY + 3, { fontSize: 12, fontStyle: 'bold', color: '#ffffff' });
-        addText(formatCurrency(pricingData.total || 0), margin + 145, tableY + 3, { fontSize: 12, fontStyle: 'bold', color: '#ffffff' });
+        pdf.roundedRect(margin + 100, tableY - 5, contentWidth - 100, 18, 3, 3, 'F');
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(255, 255, 255);
+        pdf.text('Total Investment', margin + 110, tableY + 6);
+        pdf.setFontSize(14);
+        pdf.text(formatCurrency(pricingData.total || 0), pageWidth - margin - 10, tableY + 6, { align: 'right' });
+
+        // Footer
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(156, 163, 175);
+        pdf.text(`${document.title} • ${companySettings?.company_name || 'Company'}`, margin, pageHeight - 15);
+        pdf.text(`Page ${currentPage}`, pageWidth - margin, pageHeight - 15, { align: 'right' });
+        currentPage++;
       }
 
       // ===== SIGNATURE PAGE =====
       if (signatures && signatures.length > 0) {
         pdf.addPage();
         
+        // Header
         pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        pdf.rect(0, 0, pageWidth, 25, 'F');
-        addText('Signatures', margin, 16, { fontSize: 10, color: '#ffffff' });
-        
-        addText('Signature Page', margin, 45, { fontSize: 18, fontStyle: 'bold' });
-        addText('By signing below, the parties agree to the terms and conditions outlined in this document.', margin, 58, { fontSize: 10, color: '#6b7280' });
+        pdf.rect(0, 0, pageWidth, 30, 'F');
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(255, 255, 255);
+        pdf.text('SIGNATURES', margin, 20);
 
-        let sigY = 80;
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(107, 114, 128);
+        pdf.text('By signing below, the parties agree to the terms and conditions outlined in this document.', margin, 45);
+
+        let sigY = 60;
         signatures.forEach((sig) => {
-          const sigBoxRgb = hexToRgb('#f9fafb');
-          pdf.setFillColor(sigBoxRgb.r, sigBoxRgb.g, sigBoxRgb.b);
-          pdf.roundedRect(margin, sigY, contentWidth, 40, 3, 3, 'F');
+          // Signature box
+          pdf.setFillColor(249, 250, 251);
+          pdf.roundedRect(margin, sigY, contentWidth, 50, 4, 4, 'F');
           
-          addText(sig.signer_role, margin + 10, sigY + 12, { fontSize: 10, color: '#6b7280' });
-          addText(sig.signer_name, margin + 10, sigY + 24, { fontSize: 12, fontStyle: 'bold' });
-          addText(sig.signer_email, margin + 10, sigY + 34, { fontSize: 10, color: '#6b7280' });
+          // Signer info
+          pdf.setFontSize(9);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(107, 114, 128);
+          pdf.text(sig.signer_role.toUpperCase(), margin + 10, sigY + 12);
           
+          pdf.setFontSize(12);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(31, 41, 55);
+          pdf.text(sig.signer_name, margin + 10, sigY + 24);
+          
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(107, 114, 128);
+          pdf.text(sig.signer_email, margin + 10, sigY + 34);
+
+          // Signature status
           if (sig.signed_at) {
-            addText('✓ Signed on ' + format(new Date(sig.signed_at), 'MMM d, yyyy'), margin + 120, sigY + 24, { fontSize: 10, color: '#16a34a' });
+            // Signed checkmark
+            pdf.setFillColor(22, 163, 74);
+            pdf.circle(pageWidth - margin - 25, sigY + 18, 6, 'F');
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(255, 255, 255);
+            pdf.text('✓', pageWidth - margin - 27.5, sigY + 21);
+            
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(22, 163, 74);
+            pdf.text('SIGNED', pageWidth - margin - 15, sigY + 20, { align: 'left' });
+            
+            pdf.setFontSize(9);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setTextColor(107, 114, 128);
+            pdf.text(format(new Date(sig.signed_at), 'MMM d, yyyy h:mm a'), margin + 10, sigY + 44);
+            
+            if (sig.ip_address) {
+              pdf.text(`IP: ${sig.ip_address}`, margin + 80, sigY + 44);
+            }
           } else {
-            addText('Pending signature', margin + 120, sigY + 24, { fontSize: 10, color: '#f59e0b' });
+            // Pending badge
+            pdf.setFillColor(251, 191, 36);
+            pdf.roundedRect(pageWidth - margin - 50, sigY + 12, 40, 14, 3, 3, 'F');
+            pdf.setFontSize(9);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(255, 255, 255);
+            pdf.text('PENDING', pageWidth - margin - 30, sigY + 21, { align: 'center' });
           }
-          
-          sigY += 50;
+
+          sigY += 60;
         });
+
+        // Footer
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(156, 163, 175);
+        pdf.text(`${document.title} • ${companySettings?.company_name || 'Company'}`, margin, pageHeight - 15);
+        pdf.text(`Page ${currentPage}`, pageWidth - margin, pageHeight - 15, { align: 'right' });
+        currentPage++;
       }
 
-      // ===== AUDIT SUMMARY PAGE =====
+      // ===== AUDIT TRAIL PAGE =====
       pdf.addPage();
       
+      // Header
       pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.rect(0, 0, pageWidth, 25, 'F');
-      addText('Audit Trail', margin, 16, { fontSize: 10, color: '#ffffff' });
-      
-      addText('Document Audit Summary', margin, 45, { fontSize: 18, fontStyle: 'bold' });
-      
-      addText('Document ID:', margin, 70, { fontSize: 10, fontStyle: 'bold' });
-      addText(document.id, margin + 35, 70, { fontSize: 10, color: '#6b7280' });
-      
-      addText('Created:', margin, 82, { fontSize: 10, fontStyle: 'bold' });
-      addText(format(new Date(document.created_at), 'MMMM d, yyyy h:mm a'), margin + 35, 82, { fontSize: 10 });
-      
-      addText('Last Updated:', margin, 94, { fontSize: 10, fontStyle: 'bold' });
-      addText(format(new Date(document.updated_at), 'MMMM d, yyyy h:mm a'), margin + 35, 94, { fontSize: 10 });
-      
-      addText('Version:', margin, 106, { fontSize: 10, fontStyle: 'bold' });
-      addText(`v${document.version}`, margin + 35, 106, { fontSize: 10 });
-      
-      addText('Compliance Confirmed:', margin, 118, { fontSize: 10, fontStyle: 'bold' });
-      addText(document.compliance_confirmed ? 'Yes' : 'No', margin + 50, 118, { fontSize: 10 });
+      pdf.rect(0, 0, pageWidth, 30, 'F');
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(255, 255, 255);
+      pdf.text('AUDIT TRAIL', margin, 20);
 
-      const footerBgRgb = hexToRgb('#f3f4f6');
-      pdf.setFillColor(footerBgRgb.r, footerBgRgb.g, footerBgRgb.b);
-      pdf.rect(0, pageHeight - 25, pageWidth, 25, 'F');
-      addText('This document was generated by ' + (companySettings?.company_name || 'CipherX Solutions'), margin, pageHeight - 12, { fontSize: 9, color: '#6b7280' });
-      addText(format(new Date(), 'MMMM d, yyyy'), pageWidth - margin - 40, pageHeight - 12, { fontSize: 9, color: '#6b7280' });
+      // Audit info
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(31, 41, 55);
+      pdf.text('Document Information', margin, 50);
 
-      pdf.save(`${document.title.replace(/[^a-z0-9]/gi, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      const auditData = [
+        ['Document ID', docNumber],
+        ['Type', documentTypeLabels[document.document_type] || document.document_type],
+        ['Status', document.status.toUpperCase()],
+        ['Created', format(new Date(document.created_at), 'MMMM d, yyyy h:mm a')],
+        ['Last Modified', format(new Date(document.updated_at), 'MMMM d, yyyy h:mm a')],
+        ['Version', `v${document.version}`],
+        ['Compliance Confirmed', document.compliance_confirmed ? 'Yes' : 'No']
+      ];
+
+      let auditY = 60;
+      auditData.forEach(([label, value]) => {
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(107, 114, 128);
+        pdf.text(label + ':', margin, auditY);
+        pdf.setTextColor(31, 41, 55);
+        pdf.text(value || '', margin + 50, auditY);
+        auditY += 10;
+      });
+
+      // Company footer
+      pdf.setFillColor(243, 244, 246);
+      pdf.rect(0, pageHeight - 35, pageWidth, 35, 'F');
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(`This document was generated by ${companySettings?.company_name || 'Company'}`, pageWidth / 2, pageHeight - 22, { align: 'center' });
+      pdf.text(`Generated on ${format(new Date(), 'MMMM d, yyyy h:mm a')}`, pageWidth / 2, pageHeight - 14, { align: 'center' });
+
+      // Save PDF
+      const fileName = `${docNumber}_${document.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+      pdf.save(fileName);
       
       toast({ title: 'PDF exported successfully' });
     } catch (error) {
@@ -532,6 +1043,40 @@ const DocumentView = () => {
     } finally {
       setIsExporting(false);
     }
+  };
+
+  // Print function
+  const handlePrint = () => {
+    setIsPrinting(true);
+    
+    // Create print stylesheet
+    const printStyles = `
+      @media print {
+        body * { visibility: hidden; }
+        #print-content, #print-content * { visibility: visible; }
+        #print-content { 
+          position: absolute; 
+          left: 0; 
+          top: 0; 
+          width: 100%;
+          padding: 20mm;
+        }
+        .no-print { display: none !important; }
+        .print-page-break { page-break-before: always; }
+      }
+    `;
+
+    const styleSheet = window.document.createElement('style');
+    styleSheet.type = 'text/css';
+    styleSheet.innerText = printStyles;
+    window.document.head.appendChild(styleSheet);
+
+    // Small delay to ensure styles are applied
+    setTimeout(() => {
+      window.print();
+      window.document.head.removeChild(styleSheet);
+      setIsPrinting(false);
+    }, 100);
   };
 
   if (docLoading) {
@@ -564,7 +1109,7 @@ const DocumentView = () => {
             variant="ghost" 
             size="icon" 
             onClick={() => navigate('/admin/documents')}
-            className="shrink-0 h-9 w-9 sm:h-10 sm:w-10"
+            className="shrink-0 h-9 w-9 sm:h-10 sm:w-10 no-print"
           >
             <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
@@ -585,7 +1130,7 @@ const DocumentView = () => {
         </div>
         
         {/* Action Buttons */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 no-print">
           {document.status === 'draft' && (
             <Button variant="outline" size="sm" asChild className="flex-1 sm:flex-none">
               <Link to={`/admin/documents/${id}/edit`}>
@@ -594,6 +1139,20 @@ const DocumentView = () => {
               </Link>
             </Button>
           )}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handlePrint} 
+            disabled={isPrinting}
+            className="flex-1 sm:flex-none"
+          >
+            {isPrinting ? (
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+            ) : (
+              <Printer className="h-4 w-4 mr-1.5" />
+            )}
+            <span>Print</span>
+          </Button>
           <Button 
             variant="outline" 
             size="sm" 
@@ -618,7 +1177,7 @@ const DocumentView = () => {
       </div>
 
       {/* Document Preview */}
-      <div ref={printRef} className="space-y-3 sm:space-y-4">
+      <div ref={printRef} id="print-content" className="space-y-3 sm:space-y-4">
         {/* Meta Info Card */}
         <Card>
           <CardContent className="pt-4 sm:pt-6 pb-4 sm:pb-6">
@@ -667,7 +1226,7 @@ const DocumentView = () => {
 
         {/* Sections */}
         {sections.length > 0 && (
-          <Card>
+          <Card className="print-page-break">
             <CardContent className="pt-4 sm:pt-6 pb-4 sm:pb-6">
               <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 flex items-center gap-2">
                 <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -692,7 +1251,7 @@ const DocumentView = () => {
 
         {/* Pricing */}
         {pricingItems.length > 0 && (
-          <Card>
+          <Card className="print-page-break">
             <CardContent className="pt-4 sm:pt-6 pb-4 sm:pb-6">
               <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 flex items-center gap-2">
                 <DollarSign className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -804,7 +1363,7 @@ const DocumentView = () => {
 
         {/* Signatures */}
         {signatures && signatures.length > 0 && (
-          <Card>
+          <Card className="print-page-break">
             <CardContent className="pt-4 sm:pt-6 pb-4 sm:pb-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 sm:mb-4">
                 <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
@@ -851,7 +1410,7 @@ const DocumentView = () => {
                             <p className="text-xs sm:text-sm text-muted-foreground truncate">{sig.signer_email}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 no-print">
                           {sig.signed_at ? (
                             <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 text-xs whitespace-nowrap">
                               <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -910,7 +1469,7 @@ const DocumentView = () => {
                       
                       {/* Show signing link if not signed and document is sent */}
                       {!sig.signed_at && document.status === 'sent' && (
-                        <div className="mt-3 flex items-center gap-2">
+                        <div className="mt-3 flex items-center gap-2 no-print">
                           <div className="flex-1 p-2 bg-muted/50 rounded text-xs font-mono truncate">
                             {signingUrl}
                           </div>
