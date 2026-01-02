@@ -1,0 +1,296 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { ChevronLeft, ChevronRight, Save, Send, FileText } from 'lucide-react';
+
+// Wizard Steps
+import { StepSelectClient } from '@/components/document-builder/StepSelectClient';
+import { StepSelectService } from '@/components/document-builder/StepSelectService';
+import { StepLoadTemplate } from '@/components/document-builder/StepLoadTemplate';
+import { StepEditSections } from '@/components/document-builder/StepEditSections';
+import { StepPricing } from '@/components/document-builder/StepPricing';
+import { StepCompliance } from '@/components/document-builder/StepCompliance';
+import { StepSignatures } from '@/components/document-builder/StepSignatures';
+import { StepReviewSend } from '@/components/document-builder/StepReviewSend';
+
+import { getTemplate, serviceTypeLabels, documentTypeLabels, type TemplateSection, type PricingItem } from '@/lib/templates/service-templates';
+import type { Database } from '@/integrations/supabase/types';
+
+type DocumentType = Database['public']['Enums']['document_type'];
+type ServiceType = Database['public']['Enums']['service_type'];
+
+interface Client {
+  id: string;
+  company_name: string;
+  address_line1: string | null;
+  city: string | null;
+  province: string | null;
+  postal_code: string | null;
+}
+
+interface Signer {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isRequired: boolean;
+}
+
+const STEPS = [
+  { id: 1, name: 'Select Client', description: 'Choose the client' },
+  { id: 2, name: 'Select Service', description: 'Choose service type' },
+  { id: 3, name: 'Load Template', description: 'Select document type' },
+  { id: 4, name: 'Edit Sections', description: 'Customize content' },
+  { id: 5, name: 'Pricing', description: 'Set pricing & discounts' },
+  { id: 6, name: 'Compliance', description: 'Confirm compliance' },
+  { id: 7, name: 'Signatures', description: 'Setup signers' },
+  { id: 8, name: 'Review & Send', description: 'Preview and send' },
+];
+
+const DocumentBuilder = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  
+  const [currentStep, setCurrentStep] = useState(1);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Form State
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [serviceType, setServiceType] = useState<ServiceType | null>(null);
+  const [documentType, setDocumentType] = useState<DocumentType | null>(null);
+  const [title, setTitle] = useState('');
+  const [sections, setSections] = useState<TemplateSection[]>([]);
+  const [pricingItems, setPricingItems] = useState<PricingItem[]>([]);
+  const [discount, setDiscount] = useState({ type: 'percentage' as 'percentage' | 'fixed', value: 0 });
+  const [complianceConfirmed, setComplianceConfirmed] = useState(false);
+  const [signers, setSigners] = useState<Signer[]>([]);
+  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+
+  // Load template when service and document type are selected
+  useEffect(() => {
+    if (serviceType && documentType) {
+      const template = getTemplate(documentType, serviceType);
+      if (template) {
+        setSections(template.sections);
+        setPricingItems(template.defaultPricing);
+        setTitle(`${documentTypeLabels[documentType]} - ${serviceTypeLabels[serviceType]}`);
+      }
+    }
+  }, [serviceType, documentType]);
+
+  // Replace placeholders in section content
+  const processContent = (content: string): string => {
+    if (!selectedClient) return content;
+    
+    const clientAddress = [
+      selectedClient.address_line1,
+      selectedClient.city,
+      selectedClient.province,
+      selectedClient.postal_code,
+    ].filter(Boolean).join(', ');
+
+    return content
+      .replace(/\{\{CLIENT_NAME\}\}/g, selectedClient.company_name)
+      .replace(/\{\{CLIENT_ADDRESS\}\}/g, clientAddress || 'Address to be provided')
+      .replace(/\{\{DATE\}\}/g, new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' }))
+      .replace(/\{\{EXPIRY_DATE\}\}/g, expiresAt ? expiresAt.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' }) : '30 days from date above');
+  };
+
+  const calculateTotal = () => {
+    const subtotal = pricingItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+    const discountAmount = discount.type === 'percentage' 
+      ? subtotal * (discount.value / 100) 
+      : discount.value;
+    return { subtotal, discountAmount, total: subtotal - discountAmount };
+  };
+
+  const canProceed = (): boolean => {
+    switch (currentStep) {
+      case 1: return !!selectedClient;
+      case 2: return !!serviceType;
+      case 3: return !!documentType;
+      case 4: return sections.length > 0;
+      case 5: return pricingItems.length > 0;
+      case 6: return complianceConfirmed;
+      case 7: return signers.length > 0;
+      case 8: return true;
+      default: return false;
+    }
+  };
+
+  const handleNext = () => {
+    if (currentStep < STEPS.length && canProceed()) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!selectedClient || !serviceType || !documentType) {
+      toast({ variant: 'destructive', title: 'Missing required fields' });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { subtotal, discountAmount, total } = calculateTotal();
+      
+      const processedSections = sections.map(s => ({
+        ...s,
+        content: processContent(s.content),
+      }));
+
+      const { data, error } = await supabase.from('documents').insert([{
+        title,
+        client_id: selectedClient.id,
+        document_type: documentType,
+        service_type: serviceType,
+        status: 'draft' as const,
+        content: { sections: processedSections },
+        pricing_data: { items: pricingItems, discount, subtotal, discountAmount, total },
+        compliance_confirmed: complianceConfirmed,
+        expires_at: expiresAt?.toISOString(),
+        created_by: user?.id,
+      }]).select().single();
+
+      if (error) throw error;
+
+      // Save signatures
+      if (signers.length > 0 && data) {
+        const signatureInserts = signers.map((signer, idx) => ({
+          document_id: data.id,
+          signer_name: signer.name,
+          signer_email: signer.email,
+          signer_role: signer.role,
+          is_required: signer.isRequired,
+          sort_order: idx,
+        }));
+        await supabase.from('signatures').insert(signatureInserts);
+      }
+
+      toast({ title: 'Draft saved successfully' });
+      navigate('/admin/documents');
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      toast({ variant: 'destructive', title: 'Failed to save draft' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSend = async () => {
+    await handleSaveDraft();
+    // TODO: Implement send functionality
+    toast({ title: 'Document saved. Send functionality coming soon.' });
+  };
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 1:
+        return <StepSelectClient selectedClient={selectedClient} onSelect={setSelectedClient} />;
+      case 2:
+        return <StepSelectService serviceType={serviceType} onSelect={setServiceType} />;
+      case 3:
+        return <StepLoadTemplate documentType={documentType} serviceType={serviceType} onSelect={setDocumentType} title={title} onTitleChange={setTitle} />;
+      case 4:
+        return <StepEditSections sections={sections} onChange={setSections} processContent={processContent} />;
+      case 5:
+        return <StepPricing items={pricingItems} onChange={setPricingItems} discount={discount} onDiscountChange={setDiscount} totals={calculateTotal()} />;
+      case 6:
+        return <StepCompliance confirmed={complianceConfirmed} onConfirm={setComplianceConfirmed} serviceType={serviceType} />;
+      case 7:
+        return <StepSignatures signers={signers} onChange={setSigners} client={selectedClient} expiresAt={expiresAt} onExpiresAtChange={setExpiresAt} />;
+      case 8:
+        return <StepReviewSend client={selectedClient} documentType={documentType} serviceType={serviceType} title={title} sections={sections} pricingItems={pricingItems} discount={discount} totals={calculateTotal()} signers={signers} processContent={processContent} />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Document Builder</h1>
+          <p className="text-muted-foreground">Create proposals, contracts, and SLAs</p>
+        </div>
+        <Button variant="outline" onClick={() => navigate('/admin/documents')}>
+          Cancel
+        </Button>
+      </div>
+
+      {/* Progress */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium">Step {currentStep} of {STEPS.length}</span>
+            <span className="text-sm text-muted-foreground">{STEPS[currentStep - 1].name}</span>
+          </div>
+          <Progress value={(currentStep / STEPS.length) * 100} className="h-2" />
+          <div className="flex justify-between mt-2">
+            {STEPS.map((step) => (
+              <div
+                key={step.id}
+                className={`text-xs ${step.id === currentStep ? 'text-primary font-medium' : step.id < currentStep ? 'text-muted-foreground' : 'text-muted-foreground/50'}`}
+              >
+                {step.id}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Step Content */}
+      <Card className="min-h-[400px]">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            {STEPS[currentStep - 1].name}
+          </CardTitle>
+          <CardDescription>{STEPS[currentStep - 1].description}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {renderStep()}
+        </CardContent>
+      </Card>
+
+      {/* Navigation */}
+      <div className="flex justify-between">
+        <Button variant="outline" onClick={handleBack} disabled={currentStep === 1}>
+          <ChevronLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleSaveDraft} disabled={isSaving || !selectedClient}>
+            <Save className="h-4 w-4 mr-2" />
+            Save Draft
+          </Button>
+          {currentStep === STEPS.length ? (
+            <Button onClick={handleSend} disabled={!canProceed() || isSaving}>
+              <Send className="h-4 w-4 mr-2" />
+              Send for Signature
+            </Button>
+          ) : (
+            <Button onClick={handleNext} disabled={!canProceed()}>
+              Next
+              <ChevronRight className="h-4 w-4 ml-2" />
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DocumentBuilder;
