@@ -19,7 +19,7 @@ import { StepSignatures } from '@/components/document-builder/StepSignatures';
 import { StepReviewSend } from '@/components/document-builder/StepReviewSend';
 
 import { getTemplate, serviceTypeLabels, documentTypeLabels, type TemplateSection, type PricingItem } from '@/lib/templates/service-templates';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database, Json } from '@/integrations/supabase/types';
 
 type DocumentType = Database['public']['Enums']['document_type'];
 type ServiceType = Database['public']['Enums']['service_type'];
@@ -157,8 +157,8 @@ const DocumentBuilder = () => {
         document_type: documentType,
         service_type: serviceType,
         status: 'draft' as const,
-        content: { sections: processedSections },
-        pricing_data: { items: pricingItems, discount, subtotal, discountAmount, total },
+        content: JSON.parse(JSON.stringify({ sections: processedSections })),
+        pricing_data: JSON.parse(JSON.stringify({ items: pricingItems, discount, subtotal, discountAmount, total })),
         compliance_confirmed: complianceConfirmed,
         expires_at: expiresAt?.toISOString(),
         created_by: user?.id,
