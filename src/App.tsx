@@ -22,6 +22,7 @@ import AdminClientForm from "@/pages/admin/ClientForm";
 import AdminProjects from "@/pages/admin/Projects";
 import AdminDocuments from "@/pages/admin/Documents";
 import AdminDocumentBuilder from "@/pages/admin/DocumentBuilder";
+import AdminDocumentView from "@/pages/admin/DocumentView";
 import AdminSubscriptions from "@/pages/admin/Subscriptions";
 import AdminUsers from "@/pages/admin/Users";
 import AdminSettings from "@/pages/admin/Settings";
@@ -62,6 +63,7 @@ const App = () => (
               <Route path="projects" element={<AdminProjects />} />
               <Route path="documents" element={<AdminDocuments />} />
               <Route path="documents/new" element={<AdminDocumentBuilder />} />
+              <Route path="documents/:id" element={<AdminDocumentView />} />
               <Route path="subscriptions" element={<AdminSubscriptions />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="settings" element={<AdminSettings />} />
