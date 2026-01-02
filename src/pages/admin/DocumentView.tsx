@@ -283,7 +283,8 @@ const DocumentView = () => {
       const secondaryRgb = hexToRgb(secondaryColor);
       
       // Helper to add text
-      const addText = (text: string, x: number, y: number, options?: { fontSize?: number; color?: string; fontStyle?: string; maxWidth?: number }) => {
+      const addText = (text: string | null | undefined, x: number, y: number, options?: { fontSize?: number; color?: string; fontStyle?: string; maxWidth?: number }) => {
+        const safeText = text || '';
         pdf.setFontSize(options?.fontSize || 12);
         const textColor = options?.color || '#1f2937';
         const textRgb = hexToRgb(textColor);
@@ -294,9 +295,9 @@ const DocumentView = () => {
           pdf.setFont('helvetica', 'normal');
         }
         if (options?.maxWidth) {
-          pdf.text(text, x, y, { maxWidth: options.maxWidth });
+          pdf.text(safeText, x, y, { maxWidth: options.maxWidth });
         } else {
-          pdf.text(text, x, y);
+          pdf.text(safeText, x, y);
         }
       };
 
