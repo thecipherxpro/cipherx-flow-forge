@@ -230,22 +230,31 @@ const DocumentBuilder = () => {
         </Button>
       </div>
 
-      {/* Progress */}
+      {/* Progress Steps */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-2">
+        <CardContent className="pt-6 pb-4">
+          <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-medium">Step {currentStep} of {STEPS.length}</span>
-            <span className="text-sm text-muted-foreground">{STEPS[currentStep - 1].name}</span>
+            <span className="text-sm text-muted-foreground">{Math.round((currentStep / STEPS.length) * 100)}% Complete</span>
           </div>
-          <Progress value={(currentStep / STEPS.length) * 100} className="h-2" />
-          <div className="flex justify-between mt-2">
+          <Progress value={(currentStep / STEPS.length) * 100} className="h-2 mb-4" />
+          <div className="grid grid-cols-8 gap-1">
             {STEPS.map((step) => (
-              <div
+              <button
                 key={step.id}
-                className={`text-xs ${step.id === currentStep ? 'text-primary font-medium' : step.id < currentStep ? 'text-muted-foreground' : 'text-muted-foreground/50'}`}
+                onClick={() => step.id < currentStep && setCurrentStep(step.id)}
+                disabled={step.id > currentStep}
+                className={`text-center p-2 rounded-lg transition-colors ${
+                  step.id === currentStep 
+                    ? 'bg-primary text-primary-foreground' 
+                    : step.id < currentStep 
+                      ? 'bg-primary/10 text-primary cursor-pointer hover:bg-primary/20' 
+                      : 'bg-muted/50 text-muted-foreground/50 cursor-not-allowed'
+                }`}
               >
-                {step.id}
-              </div>
+                <div className="text-xs font-medium">{step.id}</div>
+                <div className="text-[10px] truncate hidden sm:block">{step.name.split(' ')[0]}</div>
+              </button>
             ))}
           </div>
         </CardContent>
