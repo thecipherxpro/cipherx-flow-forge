@@ -28,9 +28,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Search, Users, UserCog, Loader2 } from 'lucide-react';
+import { Search, Users, UserCog, Loader2, Mail, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { MobileCardItem } from '@/components/MobileCardView';
 
 interface Profile {
   id: string;
@@ -121,11 +122,9 @@ const AdminUsers = () => {
 
     setIsSaving(true);
     try {
-      // Check if user already has a role
       const existingRole = userRoles.get(selectedUser.id);
       
       if (existingRole) {
-        // Update existing role
         const { error } = await supabase
           .from('user_roles')
           .update({ role: selectedRole as 'admin' | 'staff' | 'client' })
@@ -133,7 +132,6 @@ const AdminUsers = () => {
         
         if (error) throw error;
       } else {
-        // Insert new role
         const { error } = await supabase
           .from('user_roles')
           .insert({ user_id: selectedUser.id, role: selectedRole as 'admin' | 'staff' | 'client' });
@@ -141,15 +139,12 @@ const AdminUsers = () => {
         if (error) throw error;
       }
 
-      // If client role, also create client_users entry
       if (selectedRole === 'client' && selectedClient) {
-        // First remove any existing client_users entries
         await supabase
           .from('client_users')
           .delete()
           .eq('user_id', selectedUser.id);
         
-        // Then insert the new one
         const { error } = await supabase
           .from('client_users')
           .insert({ user_id: selectedUser.id, client_id: selectedClient });
@@ -173,19 +168,20 @@ const AdminUsers = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">User Management</h1>
+        <p className="text-sm text-muted-foreground">
           Manage user accounts and role assignments
         </p>
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <CardTitle>All Users</CardTitle>
+              <CardTitle className="text-lg">All Users</CardTitle>
               <CardDescription>{profiles.length} registered users</CardDescription>
             </div>
             <div className="relative w-full sm:w-64">
@@ -210,67 +206,118 @@ const AdminUsers = () => {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Joined</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredProfiles.map((profile) => {
-                    const role = userRoles.get(profile.id);
-                    return (
-                      <TableRow key={profile.id}>
-                        <TableCell className="font-medium">
-                          {profile.full_name || 'No name'}
-                        </TableCell>
-                        <TableCell>{profile.email}</TableCell>
-                        <TableCell>
+            <>
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3">
+                {filteredProfiles.map((profile) => {
+                  const role = userRoles.get(profile.id);
+                  return (
+                    <MobileCardItem key={profile.id}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate">
+                            {profile.full_name || 'No name'}
+                          </p>
+                          <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                            <Mail className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">{profile.email}</span>
+                          </p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <Calendar className="h-3 w-3 flex-shrink-0" />
+                            <span>Joined {format(new Date(profile.created_at), 'MMM d, yyyy')}</span>
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
                           {role ? (
-                            <Badge className={roleColors[role] || ''}>
+                            <Badge className={`text-xs ${roleColors[role] || ''}`}>
                               {role}
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="text-amber-600">
+                            <Badge variant="outline" className="text-xs text-amber-600">
                               Pending
                             </Badge>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm text-muted-foreground">
-                            {format(new Date(profile.created_at), 'MMM d, yyyy')}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => openAssignDialog(profile)}
-                          >
-                            <UserCog className="h-4 w-4 mr-2" />
-                            {role ? 'Change Role' : 'Assign Role'}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="w-full"
+                          onClick={() => openAssignDialog(profile)}
+                        >
+                          <UserCog className="h-4 w-4 mr-2" />
+                          {role ? 'Change Role' : 'Assign Role'}
+                        </Button>
+                      </div>
+                    </MobileCardItem>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Joined</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredProfiles.map((profile) => {
+                      const role = userRoles.get(profile.id);
+                      return (
+                        <TableRow key={profile.id}>
+                          <TableCell className="font-medium">
+                            {profile.full_name || 'No name'}
+                          </TableCell>
+                          <TableCell>{profile.email}</TableCell>
+                          <TableCell>
+                            {role ? (
+                              <Badge className={roleColors[role] || ''}>
+                                {role}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-amber-600">
+                                Pending
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-muted-foreground">
+                              {format(new Date(profile.created_at), 'MMM d, yyyy')}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => openAssignDialog(profile)}
+                            >
+                              <UserCog className="h-4 w-4 mr-2" />
+                              {role ? 'Change Role' : 'Assign Role'}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Assign User Role</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="truncate">
               Assign a role to {selectedUser?.email}
             </DialogDescription>
           </DialogHeader>
@@ -314,13 +361,14 @@ const AdminUsers = () => {
             )}
           </div>
           
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setDialogOpen(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button 
               onClick={handleAssignRole} 
               disabled={!selectedRole || (selectedRole === 'client' && !selectedClient) || isSaving}
+              className="w-full sm:w-auto"
             >
               {isSaving ? (
                 <>
