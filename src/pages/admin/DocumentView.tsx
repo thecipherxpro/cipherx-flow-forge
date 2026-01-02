@@ -197,9 +197,32 @@ const DocumentView = () => {
     }
   });
 
-  const sections: DocumentSection[] = (document?.content as any)?.sections || [];
-  const pricingData = document?.pricing_data as any || {};
-  const pricingItems: PricingItem[] = pricingData.items || [];
+  const rawSections = (document?.content as any)?.sections;
+  const sections: DocumentSection[] = Array.isArray(rawSections)
+    ? rawSections.map((s: any, idx: number) => ({
+        key: String(s?.key ?? `section_${idx + 1}`),
+        title: String(s?.title ?? s?.section_title ?? `Section ${idx + 1}`),
+        content:
+          typeof s?.content === 'string'
+            ? s.content
+            : s?.content == null
+              ? ''
+              : JSON.stringify(s.content, null, 2),
+        isRequired: Boolean(s?.isRequired ?? s?.is_required ?? false),
+      }))
+    : [];
+
+  const pricingData = (document?.pricing_data as any) ?? {};
+  const rawPricingItems = pricingData?.items;
+  const pricingItems: PricingItem[] = Array.isArray(rawPricingItems)
+    ? rawPricingItems.map((it: any, idx: number) => ({
+        id: String(it?.id ?? `item_${idx + 1}`),
+        name: String(it?.name ?? 'Item'),
+        description: typeof it?.description === 'string' ? it.description : '',
+        quantity: Number(it?.quantity ?? 1),
+        unitPrice: Number(it?.unitPrice ?? it?.unit_price ?? 0),
+      }))
+    : [];
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(amount);
@@ -712,26 +735,28 @@ const DocumentView = () => {
       const tocSections = [...sections];
 
       tocSections.forEach((section, idx) => {
+        const sectionTitle = String(section?.title ?? `Section ${idx + 1}`);
+
         pdf.setFontSize(12);
         pdf.setFont('helvetica', 'normal');
         pdf.setTextColor(31, 41, 55);
-        
+
         // Section number and title
         pdf.text(`${idx + 1}.`, margin, tocY);
-        pdf.text(section.title, margin + 10, tocY);
-        
+        pdf.text(sectionTitle, margin + 10, tocY);
+
         // Dotted line
         pdf.setDrawColor(200, 200, 200);
-        const titleWidth = pdf.getTextWidth(section.title);
+        const titleWidth = pdf.getTextWidth(sectionTitle);
         const dotsStart = margin + 15 + titleWidth;
         const dotsEnd = pageWidth - margin - 15;
         for (let x = dotsStart; x < dotsEnd; x += 3) {
           pdf.circle(x, tocY - 1, 0.3, 'F');
         }
-        
+
         // Page number
         pdf.text(pageNumber.toString(), pageWidth - margin, tocY, { align: 'right' });
-        
+
         tocY += 12;
         pageNumber++;
       });
@@ -842,10 +867,12 @@ const DocumentView = () => {
           pdf.setFont('helvetica', 'normal');
           pdf.setTextColor(31, 41, 55);
           
-          const itemName = item.name.length > 20 ? item.name.slice(0, 18) + '...' : item.name;
-          pdf.text(itemName, margin + 5, tableY + 4);
+          const itemNameRaw = String((item as any)?.name ?? '');
+          const itemName = itemNameRaw.length > 20 ? itemNameRaw.slice(0, 18) + '...' : itemNameRaw;
+          pdf.text(itemName || 'Item', margin + 5, tableY + 4);
           
-          const desc = (item.description || '').length > 25 ? (item.description || '').slice(0, 23) + '...' : (item.description || '');
+          const descRaw = String((item as any)?.description ?? '');
+          const desc = descRaw.length > 25 ? descRaw.slice(0, 23) + '...' : descRaw;
           pdf.setTextColor(107, 114, 128);
           pdf.text(desc, margin + 55, tableY + 4);
           
@@ -1313,23 +1340,25 @@ const DocumentView = () => {
       const tocSections = [...sections];
 
       tocSections.forEach((section, idx) => {
+        const sectionTitle = String(section?.title ?? `Section ${idx + 1}`);
+
         pdf.setFontSize(12);
         pdf.setFont('helvetica', 'normal');
         pdf.setTextColor(31, 41, 55);
-        
+
         pdf.text(`${idx + 1}.`, margin, tocY);
-        pdf.text(section.title, margin + 10, tocY);
-        
+        pdf.text(sectionTitle, margin + 10, tocY);
+
         pdf.setDrawColor(200, 200, 200);
-        const titleWidth = pdf.getTextWidth(section.title);
+        const titleWidth = pdf.getTextWidth(sectionTitle);
         const dotsStart = margin + 15 + titleWidth;
         const dotsEnd = pageWidth - margin - 15;
         for (let x = dotsStart; x < dotsEnd; x += 3) {
           pdf.circle(x, tocY - 1, 0.3, 'F');
         }
-        
+
         pdf.text(pageNumber.toString(), pageWidth - margin, tocY, { align: 'right' });
-        
+
         tocY += 12;
         pageNumber++;
       });
@@ -1438,10 +1467,12 @@ const DocumentView = () => {
           pdf.setFont('helvetica', 'normal');
           pdf.setTextColor(31, 41, 55);
           
-          const itemName = item.name.length > 20 ? item.name.slice(0, 18) + '...' : item.name;
-          pdf.text(itemName, margin + 5, tableY + 4);
+          const itemNameRaw = String((item as any)?.name ?? '');
+          const itemName = itemNameRaw.length > 20 ? itemNameRaw.slice(0, 18) + '...' : itemNameRaw;
+          pdf.text(itemName || 'Item', margin + 5, tableY + 4);
           
-          const desc = (item.description || '').length > 25 ? (item.description || '').slice(0, 23) + '...' : (item.description || '');
+          const descRaw = String((item as any)?.description ?? '');
+          const desc = descRaw.length > 25 ? descRaw.slice(0, 23) + '...' : descRaw;
           pdf.setTextColor(107, 114, 128);
           pdf.text(desc, margin + 55, tableY + 4);
           
@@ -1628,12 +1659,26 @@ const DocumentView = () => {
       // Open PDF in new window for printing
       const pdfBlob = pdf.output('blob');
       const pdfUrl = URL.createObjectURL(pdfBlob);
-      const printWindow = window.open(pdfUrl, '_blank');
-      
-      if (printWindow) {
-        printWindow.addEventListener('load', () => {
-          printWindow.print();
+      const printWindow = window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+
+      if (!printWindow) {
+        toast({
+          variant: 'destructive',
+          title: 'Pop-up blocked',
+          description: 'Allow pop-ups to open the PDF for printing.',
         });
+      } else {
+        // Some browsers don't fire "load" reliably for blob PDFs, so we also use a timeout.
+        const tryPrint = () => {
+          try {
+            printWindow.focus();
+            printWindow.print();
+          } catch {
+            // ignore
+          }
+        };
+        printWindow.addEventListener('load', tryPrint);
+        setTimeout(tryPrint, 700);
       }
       
       toast({ title: 'Print dialog opened' });
