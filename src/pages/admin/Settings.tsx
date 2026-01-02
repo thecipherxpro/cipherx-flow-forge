@@ -1,8 +1,12 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Settings, Building2, FileText, Bell, Shield } from 'lucide-react';
+import { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Building2, FileText, Bell, Shield } from 'lucide-react';
+import CompanySettings from '@/components/settings/CompanySettings';
+import TemplateManager from '@/components/settings/TemplateManager';
 
 const AdminSettings = () => {
+  const [activeTab, setActiveTab] = useState('company');
+
   return (
     <div className="space-y-6">
       <div>
@@ -12,67 +16,46 @@ const AdminSettings = () => {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Company Settings</CardTitle>
-            </div>
-            <CardDescription>
-              Update your company information and branding
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" className="w-full">Configure</Button>
-          </CardContent>
-        </Card>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+          <TabsTrigger value="company" className="flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Company</span>
+          </TabsTrigger>
+          <TabsTrigger value="templates" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Templates</span>
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            <span className="hidden sm:inline">Notifications</span>
+          </TabsTrigger>
+          <TabsTrigger value="security" className="flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            <span className="hidden sm:inline">Security</span>
+          </TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Document Templates</CardTitle>
-            </div>
-            <CardDescription>
-              Manage proposal, contract, and SLA templates
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" className="w-full">Manage Templates</Button>
-          </CardContent>
-        </Card>
+        <TabsContent value="company">
+          <CompanySettings />
+        </TabsContent>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Notifications</CardTitle>
-            </div>
-            <CardDescription>
-              Configure email and system notifications
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" className="w-full">Configure</Button>
-          </CardContent>
-        </Card>
+        <TabsContent value="templates">
+          <TemplateManager />
+        </TabsContent>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Security</CardTitle>
-            </div>
-            <CardDescription>
-              Manage security settings and audit logs
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" className="w-full">View Settings</Button>
-          </CardContent>
-        </Card>
-      </div>
+        <TabsContent value="notifications">
+          <div className="flex items-center justify-center h-64 border rounded-lg border-dashed">
+            <p className="text-muted-foreground">Notification settings coming soon</p>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="security">
+          <div className="flex items-center justify-center h-64 border rounded-lg border-dashed">
+            <p className="text-muted-foreground">Security settings coming soon</p>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
