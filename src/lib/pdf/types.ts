@@ -34,6 +34,7 @@ export interface Signature {
 
 export interface CompanySettings {
   company_name: string;
+  description: string | null;
   ceo_director_name: string | null;
   business_number: string | null;
   email: string | null;
@@ -55,6 +56,7 @@ export interface CompanySettings {
 export interface ClientContact {
   full_name: string;
   email: string;
+  phone: string | null;
   job_title: string | null;
 }
 
@@ -71,6 +73,8 @@ export interface DocumentData {
   compliance_confirmed: boolean;
   clients?: {
     company_name: string;
+    industry?: string;
+    website?: string;
     address_line1?: string;
     address_line2?: string;
     city?: string;
