@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -40,66 +40,16 @@ import {
   Printer
 } from 'lucide-react';
 import { format } from 'date-fns';
-import jsPDF from 'jspdf';
-
-interface DocumentSection {
-  key: string;
-  title: string;
-  content: string;
-  isRequired: boolean;
-}
-
-interface PricingItem {
-  id: string;
-  name: string;
-  description: string;
-  quantity: number;
-  unitPrice: number;
-}
-
-interface Signature {
-  id: string;
-  signer_name: string;
-  signer_email: string;
-  signer_role: string;
-  signed_at: string | null;
-  is_required: boolean;
-  signature_data: string | null;
-  ip_address: string | null;
-  location_data: {
-    city?: string;
-    country?: string;
-    latitude?: number;
-    longitude?: number;
-    timezone?: string;
-  } | null;
-  user_agent: string | null;
-}
-
-interface CompanySettings {
-  company_name: string;
-  legal_name: string | null;
-  email: string | null;
-  phone: string | null;
-  website: string | null;
-  address_line1: string | null;
-  address_line2: string | null;
-  city: string | null;
-  province: string | null;
-  postal_code: string | null;
-  country: string | null;
-  logo_url: string | null;
-  primary_color: string | null;
-  secondary_color: string | null;
-  footer_text: string | null;
-  tax_number: string | null;
-}
-
-interface ClientContact {
-  full_name: string;
-  email: string;
-  job_title: string | null;
-}
+import { generatePrintPdf, generateExportPdf } from '@/lib/pdf';
+import type { 
+  DocumentSection, 
+  PricingItem, 
+  Signature, 
+  CompanySettings, 
+  ClientContact,
+  DocumentData,
+  PricingData
+} from '@/lib/pdf';
 
 const statusColors: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
@@ -308,16 +258,6 @@ const DocumentView = () => {
     }
   };
 
-  // Helper to convert hex color to RGB
-  const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
-    } : { r: 15, g: 23, b: 42 };
-  };
-
   // Generate document number
   const generateDocumentNumber = () => {
     const prefix = documentTypePrefixes[document?.document_type || 'contract'] || 'DOC';
@@ -326,144 +266,67 @@ const DocumentView = () => {
     return `${prefix}-${year}-${idSuffix || '001'}`;
   };
 
-  // Parse rich text and render to PDF
-  const parseRichText = (
-    pdf: jsPDF,
-    content: string,
-    startX: number,
-    startY: number,
-    maxWidth: number,
-    pageHeight: number,
-    margin: number,
-    primaryColor: string,
-    addPageHeader: (p: jsPDF) => void
-  ): number => {
-    const primaryRgb = hexToRgb(primaryColor);
-    let yPos = startY;
-    const lineHeight = 6;
-    const paragraphSpacing = 10;
+  // Prepare PDF options from current data
+  const preparePdfOptions = () => {
+    const docNumber = generateDocumentNumber();
     
-    const lines = content.split('\n');
-    
-    for (const line of lines) {
-      // Check for page break
-      if (yPos > pageHeight - 40) {
-        pdf.addPage();
-        addPageHeader(pdf);
-        yPos = 45;
-      }
+    const documentData: DocumentData = {
+      id: document?.id || '',
+      title: document?.title || '',
+      document_type: document?.document_type || 'contract',
+      service_type: document?.service_type || 'website_only',
+      status: document?.status || 'draft',
+      version: document?.version || 1,
+      created_at: document?.created_at || new Date().toISOString(),
+      updated_at: document?.updated_at || new Date().toISOString(),
+      expires_at: document?.expires_at || null,
+      compliance_confirmed: document?.compliance_confirmed || false,
+      clients: document?.clients || null
+    };
 
-      // Headers
-      if (line.startsWith('### ')) {
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        pdf.text(line.replace('### ', ''), startX, yPos);
-        yPos += lineHeight + 4;
-        continue;
-      }
-      if (line.startsWith('## ')) {
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        pdf.text(line.replace('## ', ''), startX, yPos);
-        yPos += lineHeight + 6;
-        continue;
-      }
-      if (line.startsWith('# ')) {
-        pdf.setFontSize(16);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        pdf.text(line.replace('# ', ''), startX, yPos);
-        yPos += lineHeight + 8;
-        continue;
-      }
+    const pricingDataForPdf: PricingData = {
+      items: pricingItems,
+      subtotal: pricingData?.subtotal || 0,
+      discountPercent: pricingData?.discountPercent || 0,
+      discountAmount: pricingData?.discountAmount || 0,
+      total: pricingData?.total || 0
+    };
 
-      // Horizontal rule
-      if (line.trim() === '---' || line.trim() === '***') {
-        pdf.setDrawColor(200, 200, 200);
-        pdf.line(startX, yPos, startX + maxWidth, yPos);
-        yPos += 8;
-        continue;
-      }
+    const clientContactData: ClientContact | null = clientContact ? {
+      full_name: clientContact.full_name,
+      email: clientContact.email,
+      job_title: clientContact.job_title
+    } : null;
 
-      // Bullet points
-      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
-        pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(31, 41, 55);
-        const bulletText = line.replace(/^[\s]*[-*]\s/, '');
-        const wrappedText = pdf.splitTextToSize(bulletText, maxWidth - 10);
-        
-        pdf.text('•', startX, yPos);
-        wrappedText.forEach((textLine: string, idx: number) => {
-          if (yPos > pageHeight - 40) {
-            pdf.addPage();
-            addPageHeader(pdf);
-            yPos = 45;
-          }
-          pdf.text(textLine, startX + 6, yPos);
-          yPos += lineHeight;
-        });
-        continue;
-      }
+    const companySettingsData: CompanySettings | null = companySettings ? {
+      company_name: companySettings.company_name,
+      legal_name: companySettings.legal_name,
+      email: companySettings.email,
+      phone: companySettings.phone,
+      website: companySettings.website,
+      address_line1: companySettings.address_line1,
+      address_line2: companySettings.address_line2,
+      city: companySettings.city,
+      province: companySettings.province,
+      postal_code: companySettings.postal_code,
+      country: companySettings.country,
+      logo_url: companySettings.logo_url,
+      primary_color: companySettings.primary_color,
+      secondary_color: companySettings.secondary_color,
+      footer_text: companySettings.footer_text,
+      tax_number: companySettings.tax_number
+    } : null;
 
-      // Numbered list
-      const numberedMatch = line.trim().match(/^(\d+)\.\s(.+)/);
-      if (numberedMatch) {
-        pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(31, 41, 55);
-        const numText = numberedMatch[2];
-        const wrappedText = pdf.splitTextToSize(numText, maxWidth - 12);
-        
-        pdf.text(`${numberedMatch[1]}.`, startX, yPos);
-        wrappedText.forEach((textLine: string, idx: number) => {
-          if (yPos > pageHeight - 40) {
-            pdf.addPage();
-            addPageHeader(pdf);
-            yPos = 45;
-          }
-          pdf.text(textLine, startX + 8, yPos);
-          yPos += lineHeight;
-        });
-        continue;
-      }
-
-      // Empty line
-      if (line.trim() === '') {
-        yPos += paragraphSpacing / 2;
-        continue;
-      }
-
-      // Regular paragraph with bold/italic support
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(31, 41, 55);
-
-      // Handle bold text
-      let processedLine = line;
-      if (processedLine.includes('**')) {
-        // Simple approach: render without markdown symbols
-        processedLine = processedLine.replace(/\*\*(.+?)\*\*/g, '$1');
-      }
-      if (processedLine.includes('*')) {
-        processedLine = processedLine.replace(/\*(.+?)\*/g, '$1');
-      }
-
-      const wrappedLines = pdf.splitTextToSize(processedLine, maxWidth);
-      wrappedLines.forEach((textLine: string) => {
-        if (yPos > pageHeight - 40) {
-          pdf.addPage();
-          addPageHeader(pdf);
-          yPos = 45;
-        }
-        pdf.text(textLine, startX, yPos);
-        yPos += lineHeight;
-      });
-    }
-
-    return yPos;
+    return {
+      document: documentData,
+      companySettings: companySettingsData,
+      clientContact: clientContactData,
+      sections,
+      pricingItems,
+      pricingData: pricingDataForPdf,
+      signatures: signatures || [],
+      documentNumber: docNumber
+    };
   };
 
   const handleExportPDF = async () => {
@@ -471,1191 +334,35 @@ const DocumentView = () => {
     
     setIsExporting(true);
     try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 20;
-      const contentWidth = pageWidth - (margin * 2);
+      const options = preparePdfOptions();
+      const pdf = await generateExportPdf(options);
       
-      const primaryColor = companySettings?.primary_color || '#6B21A8';
-      const secondaryColor = companySettings?.secondary_color || '#A855F7';
-      const primaryRgb = hexToRgb(primaryColor);
-      const secondaryRgb = hexToRgb(secondaryColor);
-
-      // ===== PAGE 1: COVER PAGE =====
-      // Full page gradient background
-      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.rect(0, 0, pageWidth, pageHeight, 'F');
-
-      // Company logo placeholder circle
-      pdf.setFillColor(255, 255, 255);
-      pdf.circle(pageWidth / 2, 50, 20, 'F');
-      
-      // Company initials in circle
-      const initials = (companySettings?.company_name || 'CX').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-      pdf.setFontSize(20);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.text(initials, pageWidth / 2, 55, { align: 'center' });
-
-      // Company name
-      pdf.setFontSize(28);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text(companySettings?.company_name || 'Company Name', pageWidth / 2, 90, { align: 'center' });
-
-      // Tagline
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('Enterprise Technology Solutions', pageWidth / 2, 100, { align: 'center' });
-
-      // White content area
-      pdf.setFillColor(255, 255, 255);
-      pdf.roundedRect(margin, 120, contentWidth, 110, 5, 5, 'F');
-
-      // Document type badge
-      const docTypeText = documentTypeLabels[document.document_type]?.toUpperCase() || 'DOCUMENT';
-      pdf.setFillColor(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b);
-      const badgeWidth = pdf.getTextWidth(docTypeText) * 0.4 + 16;
-      pdf.roundedRect(margin + 15, 130, badgeWidth, 10, 2, 2, 'F');
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text(docTypeText, margin + 15 + badgeWidth / 2, 137, { align: 'center' });
-
-      // Document title
-      pdf.setFontSize(22);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(31, 41, 55);
-      const titleLines = pdf.splitTextToSize(document.title, contentWidth - 30);
-      pdf.text(titleLines, margin + 15, 160);
-
-      // Prepared for section
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(107, 114, 128);
-      pdf.text('PREPARED FOR', margin + 15, 185);
-
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(31, 41, 55);
-      pdf.text(document.clients?.company_name || 'Client', margin + 15, 195);
-
-      // Date section
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(107, 114, 128);
-      pdf.text('DATE: ' + format(new Date(document.created_at), 'MMMM d, yyyy'), margin + 15, 210);
-
-      if (document.expires_at) {
-        pdf.text('VALID UNTIL: ' + format(new Date(document.expires_at), 'MMMM d, yyyy'), margin + 15, 218);
-      }
-
-      // Footer section on cover
-      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.rect(0, pageHeight - 45, pageWidth, 45, 'F');
-
-      // Company contact info in footer
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(255, 255, 255);
-      
-      let footerY = pageHeight - 35;
-      if (companySettings?.address_line1) {
-        const fullAddress = [
-          companySettings.address_line1,
-          companySettings.address_line2,
-          [companySettings.city, companySettings.province, companySettings.postal_code].filter(Boolean).join(', '),
-          companySettings.country
-        ].filter(Boolean).join(' • ');
-        pdf.text(fullAddress, pageWidth / 2, footerY, { align: 'center' });
-        footerY += 7;
-      }
-      
-      const contactLine = [
-        companySettings?.phone,
-        companySettings?.email,
-        companySettings?.website
-      ].filter(Boolean).join(' • ');
-      if (contactLine) {
-        pdf.text(contactLine, pageWidth / 2, footerY, { align: 'center' });
-        footerY += 7;
-      }
-
-      if (companySettings?.tax_number) {
-        pdf.text(`HST/GST: ${companySettings.tax_number}`, pageWidth / 2, footerY, { align: 'center' });
-      }
-
-      // ===== PAGE 2: DOCUMENT INFO PAGE (Matching reference image) =====
-      pdf.addPage();
-
-      // Header bar with purple accent
-      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.rect(0, 0, 8, 40, 'F');
-      
-      // Company name in header
-      pdf.setFontSize(16);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.text(companySettings?.company_name || 'Company', 15, 18);
-      
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(107, 114, 128);
-      pdf.text('Enterprise Technology Solutions', 15, 26);
-
-      // Document number (top right)
       const docNumber = generateDocumentNumber();
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(31, 41, 55);
-      pdf.text(docNumber, pageWidth - margin, 18, { align: 'right' });
-
-      // Separator line
-      pdf.setDrawColor(229, 231, 235);
-      pdf.line(margin, 45, pageWidth - margin, 45);
-
-      // Document type badge
-      pdf.setFillColor(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b);
-      const typeBadgeText = (documentTypeLabels[document.document_type] || 'Document').toUpperCase();
-      const typeBadgeWidth = pdf.getTextWidth(typeBadgeText) * 0.35 + 20;
-      pdf.roundedRect(margin, 55, typeBadgeWidth, 12, 3, 3, 'F');
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text(typeBadgeText, margin + typeBadgeWidth / 2, 63, { align: 'center' });
-
-      // Document title (large)
-      pdf.setFontSize(26);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(31, 41, 55);
-      const mainTitle = pdf.splitTextToSize(document.title, contentWidth);
-      pdf.text(mainTitle, margin, 90);
-
-      // Service type
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b);
-      pdf.text(serviceTypeLabels[document.service_type] || document.service_type, margin, 105);
-
-      // Client section
-      pdf.setFillColor(249, 250, 251);
-      pdf.roundedRect(margin, 120, contentWidth, 70, 4, 4, 'F');
-
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(107, 114, 128);
-      pdf.text('PREPARED FOR', margin + 15, 138);
-
-      pdf.setFontSize(16);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(31, 41, 55);
-      pdf.text(document.clients?.company_name || 'Client', margin + 15, 152);
-
-      // Contact person
-      if (clientContact?.full_name) {
-        pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(55, 65, 81);
-        pdf.text(clientContact.full_name, margin + 15, 164);
-        if (clientContact.job_title) {
-          pdf.setFontSize(10);
-          pdf.setTextColor(107, 114, 128);
-          pdf.text(clientContact.job_title, margin + 15, 172);
-        }
-      }
-
-      // Client address
-      const clientFullAddress = [
-        document.clients?.address_line1,
-        [document.clients?.city, document.clients?.province, document.clients?.postal_code].filter(Boolean).join(', ')
-      ].filter(Boolean).join('\n');
-      
-      if (clientFullAddress) {
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(107, 114, 128);
-        const addressLines = clientFullAddress.split('\n');
-        let addrY = clientContact?.full_name ? 182 : 164;
-        addressLines.forEach(line => {
-          pdf.text(line, margin + 15, addrY);
-          addrY += 6;
-        });
-      }
-
-      // Date boxes
-      const dateBoxY = 205;
-      const dateBoxWidth = (contentWidth - 10) / 2;
-
-      // Date Issued box
-      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.roundedRect(margin, dateBoxY, dateBoxWidth, 35, 4, 4, 'F');
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('DATE ISSUED', margin + 10, dateBoxY + 14);
-      pdf.setFontSize(14);
-      pdf.text(format(new Date(document.created_at), 'MMMM d, yyyy'), margin + 10, dateBoxY + 26);
-
-      // Valid Until box
-      pdf.setFillColor(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b);
-      pdf.roundedRect(margin + dateBoxWidth + 10, dateBoxY, dateBoxWidth, 35, 4, 4, 'F');
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('VALID UNTIL', margin + dateBoxWidth + 20, dateBoxY + 14);
-      pdf.setFontSize(14);
-      const validUntil = document.expires_at 
-        ? format(new Date(document.expires_at), 'MMMM d, yyyy') 
-        : 'No expiration';
-      pdf.text(validUntil, margin + dateBoxWidth + 20, dateBoxY + 26);
-
-      // Footer on page 2
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(156, 163, 175);
-      pdf.text(`${companySettings?.company_name || 'Company'} • ${docNumber}`, margin, pageHeight - 15);
-      pdf.text('Page 2', pageWidth - margin, pageHeight - 15, { align: 'right' });
-
-      // ===== PAGE 3: TABLE OF CONTENTS =====
-      pdf.addPage();
-      
-      // Header
-      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.rect(0, 0, pageWidth, 30, 'F');
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('TABLE OF CONTENTS', margin, 20);
-
-      // TOC entries
-      let tocY = 50;
-      let pageNumber = 4;
-      const tocSections = [...sections];
-
-      tocSections.forEach((section, idx) => {
-        const sectionTitle = String(section?.title ?? `Section ${idx + 1}`);
-
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(31, 41, 55);
-
-        // Section number and title
-        pdf.text(`${idx + 1}.`, margin, tocY);
-        pdf.text(sectionTitle, margin + 10, tocY);
-
-        // Dotted line
-        pdf.setDrawColor(200, 200, 200);
-        const titleWidth = pdf.getTextWidth(sectionTitle);
-        const dotsStart = margin + 15 + titleWidth;
-        const dotsEnd = pageWidth - margin - 15;
-        for (let x = dotsStart; x < dotsEnd; x += 3) {
-          pdf.circle(x, tocY - 1, 0.3, 'F');
-        }
-
-        // Page number
-        pdf.text(pageNumber.toString(), pageWidth - margin, tocY, { align: 'right' });
-
-        tocY += 12;
-        pageNumber++;
-      });
-
-      // Add pricing and signatures to TOC
-      tocY += 5;
-      if (pricingItems.length > 0) {
-        pdf.text(`${tocSections.length + 1}.`, margin, tocY);
-        pdf.text('Pricing & Investment', margin + 10, tocY);
-        pdf.text(pageNumber.toString(), pageWidth - margin, tocY, { align: 'right' });
-        tocY += 12;
-        pageNumber++;
-      }
-      
-      if (signatures && signatures.length > 0) {
-        pdf.text(`${tocSections.length + (pricingItems.length > 0 ? 2 : 1)}.`, margin, tocY);
-        pdf.text('Signatures', margin + 10, tocY);
-        pdf.text(pageNumber.toString(), pageWidth - margin, tocY, { align: 'right' });
-      }
-
-      // Footer
-      pdf.setFontSize(9);
-      pdf.setTextColor(156, 163, 175);
-      pdf.text(`${companySettings?.company_name || 'Company'} • ${docNumber}`, margin, pageHeight - 15);
-      pdf.text('Page 3', pageWidth - margin, pageHeight - 15, { align: 'right' });
-
-      // Helper for page headers
-      const addSectionHeader = (p: jsPDF, title: string, sectionNum: number) => {
-        p.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        p.rect(0, 0, pageWidth, 30, 'F');
-        p.setFontSize(10);
-        p.setFont('helvetica', 'normal');
-        p.setTextColor(255, 255, 255);
-        p.text(`Section ${sectionNum}`, margin, 14);
-        p.setFontSize(12);
-        p.setFont('helvetica', 'bold');
-        p.text(title, margin, 23);
-      };
-
-      // ===== CONTENT PAGES =====
-      let currentPage = 4;
-      sections.forEach((section, idx) => {
-        pdf.addPage();
-        addSectionHeader(pdf, section.title, idx + 1);
-        
-        // Section content with rich text parsing
-        const addPageHeaderFn = (p: jsPDF) => {
-          addSectionHeader(p, section.title + ' (continued)', idx + 1);
-        };
-
-        parseRichText(
-          pdf,
-          section.content || '',
-          margin,
-          45,
-          contentWidth,
-          pageHeight,
-          margin,
-          primaryColor,
-          addPageHeaderFn
-        );
-
-        // Footer
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(156, 163, 175);
-        pdf.text(`${document.title} • ${companySettings?.company_name || 'Company'}`, margin, pageHeight - 15);
-        pdf.text(`Page ${currentPage}`, pageWidth - margin, pageHeight - 15, { align: 'right' });
-        currentPage++;
-      });
-
-      // ===== PRICING PAGE =====
-      if (pricingItems.length > 0) {
-        pdf.addPage();
-        
-        // Header
-        pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        pdf.rect(0, 0, pageWidth, 30, 'F');
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(255, 255, 255);
-        pdf.text('PRICING & INVESTMENT', margin, 20);
-
-        let tableY = 50;
-        
-        // Table header
-        pdf.setFillColor(243, 244, 246);
-        pdf.rect(margin, tableY, contentWidth, 12, 'F');
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(55, 65, 81);
-        pdf.text('Item', margin + 5, tableY + 8);
-        pdf.text('Description', margin + 55, tableY + 8);
-        pdf.text('Qty', margin + 115, tableY + 8);
-        pdf.text('Unit Price', margin + 130, tableY + 8);
-        pdf.text('Total', pageWidth - margin - 5, tableY + 8, { align: 'right' });
-        
-        tableY += 16;
-
-        // Table rows
-        pricingItems.forEach((item, idx) => {
-          if (idx % 2 === 0) {
-            pdf.setFillColor(249, 250, 251);
-            pdf.rect(margin, tableY - 4, contentWidth, 14, 'F');
-          }
-          
-          pdf.setFontSize(10);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setTextColor(31, 41, 55);
-          
-          const itemNameRaw = String((item as any)?.name ?? '');
-          const itemName = itemNameRaw.length > 20 ? itemNameRaw.slice(0, 18) + '...' : itemNameRaw;
-          pdf.text(itemName || 'Item', margin + 5, tableY + 4);
-          
-          const descRaw = String((item as any)?.description ?? '');
-          const desc = descRaw.length > 25 ? descRaw.slice(0, 23) + '...' : descRaw;
-          pdf.setTextColor(107, 114, 128);
-          pdf.text(desc, margin + 55, tableY + 4);
-          
-          pdf.setTextColor(31, 41, 55);
-          pdf.text(item.quantity.toString(), margin + 115, tableY + 4);
-          pdf.text(formatCurrency(item.unitPrice), margin + 130, tableY + 4);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text(formatCurrency(item.quantity * item.unitPrice), pageWidth - margin - 5, tableY + 4, { align: 'right' });
-          
-          tableY += 14;
-        });
-
-        // Totals section
-        tableY += 10;
-        pdf.setDrawColor(229, 231, 235);
-        pdf.line(margin + 100, tableY, pageWidth - margin, tableY);
-        tableY += 10;
-
-        // Subtotal
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(107, 114, 128);
-        pdf.text('Subtotal', margin + 130, tableY);
-        pdf.setTextColor(31, 41, 55);
-        pdf.text(formatCurrency(pricingData.subtotal || 0), pageWidth - margin - 5, tableY, { align: 'right' });
-        tableY += 10;
-
-        // Discount
-        if (pricingData.discountAmount > 0) {
-          pdf.setTextColor(22, 163, 74);
-          pdf.text(`Discount (${pricingData.discountPercent || 0}%)`, margin + 130, tableY);
-          pdf.text('-' + formatCurrency(pricingData.discountAmount), pageWidth - margin - 5, tableY, { align: 'right' });
-          tableY += 10;
-        }
-
-        // Total
-        tableY += 5;
-        pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        pdf.roundedRect(margin + 100, tableY - 5, contentWidth - 100, 18, 3, 3, 'F');
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(255, 255, 255);
-        pdf.text('Total Investment', margin + 110, tableY + 6);
-        pdf.setFontSize(14);
-        pdf.text(formatCurrency(pricingData.total || 0), pageWidth - margin - 10, tableY + 6, { align: 'right' });
-
-        // Footer
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(156, 163, 175);
-        pdf.text(`${document.title} • ${companySettings?.company_name || 'Company'}`, margin, pageHeight - 15);
-        pdf.text(`Page ${currentPage}`, pageWidth - margin, pageHeight - 15, { align: 'right' });
-        currentPage++;
-      }
-
-      // ===== SIGNATURE PAGE =====
-      if (signatures && signatures.length > 0) {
-        pdf.addPage();
-        
-        // Header
-        pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        pdf.rect(0, 0, pageWidth, 30, 'F');
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(255, 255, 255);
-        pdf.text('SIGNATURES', margin, 20);
-
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(107, 114, 128);
-        pdf.text('By signing below, the parties agree to the terms and conditions outlined in this document.', margin, 45);
-
-        let sigY = 60;
-        signatures.forEach((sig) => {
-          // Signature box
-          pdf.setFillColor(249, 250, 251);
-          pdf.roundedRect(margin, sigY, contentWidth, 50, 4, 4, 'F');
-          
-          // Signer info
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'bold');
-          pdf.setTextColor(107, 114, 128);
-          pdf.text(sig.signer_role.toUpperCase(), margin + 10, sigY + 12);
-          
-          pdf.setFontSize(12);
-          pdf.setFont('helvetica', 'bold');
-          pdf.setTextColor(31, 41, 55);
-          pdf.text(sig.signer_name, margin + 10, sigY + 24);
-          
-          pdf.setFontSize(10);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setTextColor(107, 114, 128);
-          pdf.text(sig.signer_email, margin + 10, sigY + 34);
-
-          // Signature status
-          if (sig.signed_at) {
-            // Signed checkmark
-            pdf.setFillColor(22, 163, 74);
-            pdf.circle(pageWidth - margin - 25, sigY + 18, 6, 'F');
-            pdf.setFontSize(10);
-            pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(255, 255, 255);
-            pdf.text('✓', pageWidth - margin - 27.5, sigY + 21);
-            
-            pdf.setFontSize(10);
-            pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(22, 163, 74);
-            pdf.text('SIGNED', pageWidth - margin - 15, sigY + 20, { align: 'left' });
-            
-            pdf.setFontSize(9);
-            pdf.setFont('helvetica', 'normal');
-            pdf.setTextColor(107, 114, 128);
-            pdf.text(format(new Date(sig.signed_at), 'MMM d, yyyy h:mm a'), margin + 10, sigY + 44);
-            
-            if (sig.ip_address) {
-              pdf.text(`IP: ${sig.ip_address}`, margin + 80, sigY + 44);
-            }
-          } else {
-            // Pending badge
-            pdf.setFillColor(251, 191, 36);
-            pdf.roundedRect(pageWidth - margin - 50, sigY + 12, 40, 14, 3, 3, 'F');
-            pdf.setFontSize(9);
-            pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(255, 255, 255);
-            pdf.text('PENDING', pageWidth - margin - 30, sigY + 21, { align: 'center' });
-          }
-
-          sigY += 60;
-        });
-
-        // Footer
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(156, 163, 175);
-        pdf.text(`${document.title} • ${companySettings?.company_name || 'Company'}`, margin, pageHeight - 15);
-        pdf.text(`Page ${currentPage}`, pageWidth - margin, pageHeight - 15, { align: 'right' });
-        currentPage++;
-      }
-
-      // ===== AUDIT TRAIL PAGE =====
-      pdf.addPage();
-      
-      // Header
-      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.rect(0, 0, pageWidth, 30, 'F');
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('AUDIT TRAIL', margin, 20);
-
-      // Audit info
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(31, 41, 55);
-      pdf.text('Document Information', margin, 50);
-
-      const auditData = [
-        ['Document ID', docNumber],
-        ['Type', documentTypeLabels[document.document_type] || document.document_type],
-        ['Status', document.status.toUpperCase()],
-        ['Created', format(new Date(document.created_at), 'MMMM d, yyyy h:mm a')],
-        ['Last Modified', format(new Date(document.updated_at), 'MMMM d, yyyy h:mm a')],
-        ['Version', `v${document.version}`],
-        ['Compliance Confirmed', document.compliance_confirmed ? 'Yes' : 'No']
-      ];
-
-      let auditY = 60;
-      auditData.forEach(([label, value]) => {
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(107, 114, 128);
-        pdf.text(label + ':', margin, auditY);
-        pdf.setTextColor(31, 41, 55);
-        pdf.text(value || '', margin + 50, auditY);
-        auditY += 10;
-      });
-
-      // Company footer
-      pdf.setFillColor(243, 244, 246);
-      pdf.rect(0, pageHeight - 35, pageWidth, 35, 'F');
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(107, 114, 128);
-      pdf.text(`This document was generated by ${companySettings?.company_name || 'Company'}`, pageWidth / 2, pageHeight - 22, { align: 'center' });
-      pdf.text(`Generated on ${format(new Date(), 'MMMM d, yyyy h:mm a')}`, pageWidth / 2, pageHeight - 14, { align: 'center' });
-
-      // Save PDF
       const fileName = `${docNumber}_${document.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
       pdf.save(fileName);
       
       toast({ title: 'PDF exported successfully' });
     } catch (error) {
       console.error('Error exporting PDF:', error);
-      toast({ variant: 'destructive', title: 'Failed to export PDF' });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast({ 
+        variant: 'destructive', 
+        title: 'Failed to export PDF',
+        description: errorMessage.length > 100 ? errorMessage.slice(0, 100) + '...' : errorMessage
+      });
     } finally {
       setIsExporting(false);
     }
   };
 
-  // Print function - generates same professional PDF as export but opens for printing
   const handlePrint = async () => {
     if (!document) return;
     
     setIsPrinting(true);
     try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 20;
-      const contentWidth = pageWidth - (margin * 2);
+      const options = preparePdfOptions();
+      const pdf = await generatePrintPdf(options);
       
-      const primaryColor = companySettings?.primary_color || '#6B21A8';
-      const secondaryColor = companySettings?.secondary_color || '#A855F7';
-      const primaryRgb = hexToRgb(primaryColor);
-      const secondaryRgb = hexToRgb(secondaryColor);
-
-      // ===== PAGE 1: COVER PAGE =====
-      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.rect(0, 0, pageWidth, pageHeight, 'F');
-
-      // Company logo placeholder circle
-      pdf.setFillColor(255, 255, 255);
-      pdf.circle(pageWidth / 2, 50, 20, 'F');
-      
-      const initials = (companySettings?.company_name || 'CX').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-      pdf.setFontSize(20);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.text(initials, pageWidth / 2, 55, { align: 'center' });
-
-      // Company name
-      pdf.setFontSize(28);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text(companySettings?.company_name || 'Company Name', pageWidth / 2, 90, { align: 'center' });
-
-      // Tagline
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('Enterprise Technology Solutions', pageWidth / 2, 100, { align: 'center' });
-
-      // White content area
-      pdf.setFillColor(255, 255, 255);
-      pdf.roundedRect(margin, 120, contentWidth, 110, 5, 5, 'F');
-
-      // Document type badge
-      const docTypeText = documentTypeLabels[document.document_type]?.toUpperCase() || 'DOCUMENT';
-      pdf.setFillColor(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b);
-      const badgeWidth = pdf.getTextWidth(docTypeText) * 0.4 + 16;
-      pdf.roundedRect(margin + 15, 130, badgeWidth, 10, 2, 2, 'F');
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text(docTypeText, margin + 15 + badgeWidth / 2, 137, { align: 'center' });
-
-      // Document title
-      pdf.setFontSize(22);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(31, 41, 55);
-      const titleLines = pdf.splitTextToSize(document.title, contentWidth - 30);
-      pdf.text(titleLines, margin + 15, 160);
-
-      // Prepared for section
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(107, 114, 128);
-      pdf.text('PREPARED FOR', margin + 15, 185);
-
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(31, 41, 55);
-      pdf.text(document.clients?.company_name || 'Client', margin + 15, 195);
-
-      // Date section
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(107, 114, 128);
-      pdf.text('DATE: ' + format(new Date(document.created_at), 'MMMM d, yyyy'), margin + 15, 210);
-
-      if (document.expires_at) {
-        pdf.text('VALID UNTIL: ' + format(new Date(document.expires_at), 'MMMM d, yyyy'), margin + 15, 218);
-      }
-
-      // Footer section on cover
-      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.rect(0, pageHeight - 45, pageWidth, 45, 'F');
-
-      // Company contact info in footer
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(255, 255, 255);
-      
-      let footerY = pageHeight - 35;
-      if (companySettings?.address_line1) {
-        const fullAddress = [
-          companySettings.address_line1,
-          companySettings.address_line2,
-          [companySettings.city, companySettings.province, companySettings.postal_code].filter(Boolean).join(', '),
-          companySettings.country
-        ].filter(Boolean).join(' • ');
-        pdf.text(fullAddress, pageWidth / 2, footerY, { align: 'center' });
-        footerY += 7;
-      }
-      
-      const contactLine = [
-        companySettings?.phone,
-        companySettings?.email,
-        companySettings?.website
-      ].filter(Boolean).join(' • ');
-      if (contactLine) {
-        pdf.text(contactLine, pageWidth / 2, footerY, { align: 'center' });
-        footerY += 7;
-      }
-
-      if (companySettings?.tax_number) {
-        pdf.text(`HST/GST: ${companySettings.tax_number}`, pageWidth / 2, footerY, { align: 'center' });
-      }
-
-      // ===== PAGE 2: DOCUMENT INFO PAGE =====
-      pdf.addPage();
-
-      // Header bar with purple accent
-      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.rect(0, 0, 8, 40, 'F');
-      
-      // Company name in header
-      pdf.setFontSize(16);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.text(companySettings?.company_name || 'Company', 15, 18);
-      
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(107, 114, 128);
-      pdf.text('Enterprise Technology Solutions', 15, 26);
-
-      // Document number
-      const docNumber = generateDocumentNumber();
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(31, 41, 55);
-      pdf.text(docNumber, pageWidth - margin, 18, { align: 'right' });
-
-      // Separator line
-      pdf.setDrawColor(229, 231, 235);
-      pdf.line(margin, 45, pageWidth - margin, 45);
-
-      // Document type badge
-      pdf.setFillColor(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b);
-      const typeBadgeText = (documentTypeLabels[document.document_type] || 'Document').toUpperCase();
-      const typeBadgeWidth = pdf.getTextWidth(typeBadgeText) * 0.35 + 20;
-      pdf.roundedRect(margin, 55, typeBadgeWidth, 12, 3, 3, 'F');
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text(typeBadgeText, margin + typeBadgeWidth / 2, 63, { align: 'center' });
-
-      // Document title
-      pdf.setFontSize(26);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(31, 41, 55);
-      const mainTitle = pdf.splitTextToSize(document.title, contentWidth);
-      pdf.text(mainTitle, margin, 90);
-
-      // Service type
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b);
-      pdf.text(serviceTypeLabels[document.service_type] || document.service_type, margin, 105);
-
-      // Client section
-      pdf.setFillColor(249, 250, 251);
-      pdf.roundedRect(margin, 120, contentWidth, 70, 4, 4, 'F');
-
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(107, 114, 128);
-      pdf.text('PREPARED FOR', margin + 15, 138);
-
-      pdf.setFontSize(16);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(31, 41, 55);
-      pdf.text(document.clients?.company_name || 'Client', margin + 15, 152);
-
-      // Contact person
-      if (clientContact?.full_name) {
-        pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(55, 65, 81);
-        pdf.text(clientContact.full_name, margin + 15, 164);
-        if (clientContact.job_title) {
-          pdf.setFontSize(10);
-          pdf.setTextColor(107, 114, 128);
-          pdf.text(clientContact.job_title, margin + 15, 172);
-        }
-      }
-
-      // Client address
-      const clientFullAddress = [
-        document.clients?.address_line1,
-        [document.clients?.city, document.clients?.province, document.clients?.postal_code].filter(Boolean).join(', ')
-      ].filter(Boolean).join('\n');
-      
-      if (clientFullAddress) {
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(107, 114, 128);
-        const addressLines = clientFullAddress.split('\n');
-        let addrY = clientContact?.full_name ? 182 : 164;
-        addressLines.forEach(line => {
-          pdf.text(line, margin + 15, addrY);
-          addrY += 6;
-        });
-      }
-
-      // Date boxes
-      const dateBoxY = 205;
-      const dateBoxWidth = (contentWidth - 10) / 2;
-
-      // Date Issued box
-      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.roundedRect(margin, dateBoxY, dateBoxWidth, 35, 4, 4, 'F');
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('DATE ISSUED', margin + 10, dateBoxY + 14);
-      pdf.setFontSize(14);
-      pdf.text(format(new Date(document.created_at), 'MMMM d, yyyy'), margin + 10, dateBoxY + 26);
-
-      // Valid Until box
-      pdf.setFillColor(secondaryRgb.r, secondaryRgb.g, secondaryRgb.b);
-      pdf.roundedRect(margin + dateBoxWidth + 10, dateBoxY, dateBoxWidth, 35, 4, 4, 'F');
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('VALID UNTIL', margin + dateBoxWidth + 20, dateBoxY + 14);
-      pdf.setFontSize(14);
-      const validUntil = document.expires_at 
-        ? format(new Date(document.expires_at), 'MMMM d, yyyy') 
-        : 'No expiration';
-      pdf.text(validUntil, margin + dateBoxWidth + 20, dateBoxY + 26);
-
-      // Footer on page 2
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(156, 163, 175);
-      pdf.text(`${companySettings?.company_name || 'Company'} • ${docNumber}`, margin, pageHeight - 15);
-      pdf.text('Page 2', pageWidth - margin, pageHeight - 15, { align: 'right' });
-
-      // ===== PAGE 3: TABLE OF CONTENTS =====
-      pdf.addPage();
-      
-      // Header
-      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.rect(0, 0, pageWidth, 30, 'F');
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('TABLE OF CONTENTS', margin, 20);
-
-      // TOC entries
-      let tocY = 50;
-      let pageNumber = 4;
-      const tocSections = [...sections];
-
-      tocSections.forEach((section, idx) => {
-        const sectionTitle = String(section?.title ?? `Section ${idx + 1}`);
-
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(31, 41, 55);
-
-        pdf.text(`${idx + 1}.`, margin, tocY);
-        pdf.text(sectionTitle, margin + 10, tocY);
-
-        pdf.setDrawColor(200, 200, 200);
-        const titleWidth = pdf.getTextWidth(sectionTitle);
-        const dotsStart = margin + 15 + titleWidth;
-        const dotsEnd = pageWidth - margin - 15;
-        for (let x = dotsStart; x < dotsEnd; x += 3) {
-          pdf.circle(x, tocY - 1, 0.3, 'F');
-        }
-
-        pdf.text(pageNumber.toString(), pageWidth - margin, tocY, { align: 'right' });
-
-        tocY += 12;
-        pageNumber++;
-      });
-
-      // Add pricing and signatures to TOC
-      tocY += 5;
-      if (pricingItems.length > 0) {
-        pdf.text(`${tocSections.length + 1}.`, margin, tocY);
-        pdf.text('Pricing & Investment', margin + 10, tocY);
-        pdf.text(pageNumber.toString(), pageWidth - margin, tocY, { align: 'right' });
-        tocY += 12;
-        pageNumber++;
-      }
-      
-      if (signatures && signatures.length > 0) {
-        pdf.text(`${tocSections.length + (pricingItems.length > 0 ? 2 : 1)}.`, margin, tocY);
-        pdf.text('Signatures', margin + 10, tocY);
-        pdf.text(pageNumber.toString(), pageWidth - margin, tocY, { align: 'right' });
-      }
-
-      // Footer
-      pdf.setFontSize(9);
-      pdf.setTextColor(156, 163, 175);
-      pdf.text(`${companySettings?.company_name || 'Company'} • ${docNumber}`, margin, pageHeight - 15);
-      pdf.text('Page 3', pageWidth - margin, pageHeight - 15, { align: 'right' });
-
-      // Helper for page headers
-      const addSectionHeader = (p: jsPDF, title: string, sectionNum: number) => {
-        p.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        p.rect(0, 0, pageWidth, 30, 'F');
-        p.setFontSize(10);
-        p.setFont('helvetica', 'normal');
-        p.setTextColor(255, 255, 255);
-        p.text(`Section ${sectionNum}`, margin, 14);
-        p.setFontSize(12);
-        p.setFont('helvetica', 'bold');
-        p.text(title, margin, 23);
-      };
-
-      // ===== CONTENT PAGES =====
-      let currentPage = 4;
-      sections.forEach((section, idx) => {
-        pdf.addPage();
-        addSectionHeader(pdf, section.title, idx + 1);
-        
-        const addPageHeaderFn = (p: jsPDF) => {
-          addSectionHeader(p, section.title + ' (continued)', idx + 1);
-        };
-
-        parseRichText(
-          pdf,
-          section.content || '',
-          margin,
-          45,
-          contentWidth,
-          pageHeight,
-          margin,
-          primaryColor,
-          addPageHeaderFn
-        );
-
-        // Footer
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(156, 163, 175);
-        pdf.text(`${document.title} • ${companySettings?.company_name || 'Company'}`, margin, pageHeight - 15);
-        pdf.text(`Page ${currentPage}`, pageWidth - margin, pageHeight - 15, { align: 'right' });
-        currentPage++;
-      });
-
-      // ===== PRICING PAGE =====
-      if (pricingItems.length > 0) {
-        pdf.addPage();
-        
-        pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        pdf.rect(0, 0, pageWidth, 30, 'F');
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(255, 255, 255);
-        pdf.text('PRICING & INVESTMENT', margin, 20);
-
-        let tableY = 50;
-        
-        // Table header
-        pdf.setFillColor(243, 244, 246);
-        pdf.rect(margin, tableY, contentWidth, 12, 'F');
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(55, 65, 81);
-        pdf.text('Item', margin + 5, tableY + 8);
-        pdf.text('Description', margin + 55, tableY + 8);
-        pdf.text('Qty', margin + 115, tableY + 8);
-        pdf.text('Unit Price', margin + 130, tableY + 8);
-        pdf.text('Total', pageWidth - margin - 5, tableY + 8, { align: 'right' });
-        
-        tableY += 16;
-
-        // Table rows
-        pricingItems.forEach((item, idx) => {
-          if (idx % 2 === 0) {
-            pdf.setFillColor(249, 250, 251);
-            pdf.rect(margin, tableY - 4, contentWidth, 14, 'F');
-          }
-          
-          pdf.setFontSize(10);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setTextColor(31, 41, 55);
-          
-          const itemNameRaw = String((item as any)?.name ?? '');
-          const itemName = itemNameRaw.length > 20 ? itemNameRaw.slice(0, 18) + '...' : itemNameRaw;
-          pdf.text(itemName || 'Item', margin + 5, tableY + 4);
-          
-          const descRaw = String((item as any)?.description ?? '');
-          const desc = descRaw.length > 25 ? descRaw.slice(0, 23) + '...' : descRaw;
-          pdf.setTextColor(107, 114, 128);
-          pdf.text(desc, margin + 55, tableY + 4);
-          
-          pdf.setTextColor(31, 41, 55);
-          pdf.text(item.quantity.toString(), margin + 115, tableY + 4);
-          pdf.text(formatCurrency(item.unitPrice), margin + 130, tableY + 4);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text(formatCurrency(item.quantity * item.unitPrice), pageWidth - margin - 5, tableY + 4, { align: 'right' });
-          
-          tableY += 14;
-        });
-
-        // Totals section
-        tableY += 10;
-        pdf.setDrawColor(229, 231, 235);
-        pdf.line(margin + 100, tableY, pageWidth - margin, tableY);
-        tableY += 10;
-
-        // Subtotal
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(107, 114, 128);
-        pdf.text('Subtotal', margin + 130, tableY);
-        pdf.setTextColor(31, 41, 55);
-        pdf.text(formatCurrency(pricingData.subtotal || 0), pageWidth - margin - 5, tableY, { align: 'right' });
-        tableY += 10;
-
-        // Discount
-        if (pricingData.discountAmount > 0) {
-          pdf.setTextColor(22, 163, 74);
-          pdf.text(`Discount (${pricingData.discountPercent || 0}%)`, margin + 130, tableY);
-          pdf.text('-' + formatCurrency(pricingData.discountAmount), pageWidth - margin - 5, tableY, { align: 'right' });
-          tableY += 10;
-        }
-
-        // Total
-        tableY += 5;
-        pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        pdf.roundedRect(margin + 100, tableY - 5, contentWidth - 100, 18, 3, 3, 'F');
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(255, 255, 255);
-        pdf.text('Total Investment', margin + 110, tableY + 6);
-        pdf.setFontSize(14);
-        pdf.text(formatCurrency(pricingData.total || 0), pageWidth - margin - 10, tableY + 6, { align: 'right' });
-
-        // Footer
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(156, 163, 175);
-        pdf.text(`${document.title} • ${companySettings?.company_name || 'Company'}`, margin, pageHeight - 15);
-        pdf.text(`Page ${currentPage}`, pageWidth - margin, pageHeight - 15, { align: 'right' });
-        currentPage++;
-      }
-
-      // ===== SIGNATURE PAGE =====
-      if (signatures && signatures.length > 0) {
-        pdf.addPage();
-        
-        pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-        pdf.rect(0, 0, pageWidth, 30, 'F');
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(255, 255, 255);
-        pdf.text('SIGNATURES', margin, 20);
-
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(107, 114, 128);
-        pdf.text('By signing below, the parties agree to the terms and conditions outlined in this document.', margin, 45);
-
-        let sigY = 60;
-        signatures.forEach((sig) => {
-          pdf.setFillColor(249, 250, 251);
-          pdf.roundedRect(margin, sigY, contentWidth, 50, 4, 4, 'F');
-          
-          pdf.setFontSize(9);
-          pdf.setFont('helvetica', 'bold');
-          pdf.setTextColor(107, 114, 128);
-          pdf.text(sig.signer_role.toUpperCase(), margin + 10, sigY + 12);
-          
-          pdf.setFontSize(12);
-          pdf.setFont('helvetica', 'bold');
-          pdf.setTextColor(31, 41, 55);
-          pdf.text(sig.signer_name, margin + 10, sigY + 24);
-          
-          pdf.setFontSize(10);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setTextColor(107, 114, 128);
-          pdf.text(sig.signer_email, margin + 10, sigY + 34);
-
-          if (sig.signed_at) {
-            pdf.setFillColor(22, 163, 74);
-            pdf.circle(pageWidth - margin - 25, sigY + 18, 6, 'F');
-            pdf.setFontSize(10);
-            pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(255, 255, 255);
-            pdf.text('✓', pageWidth - margin - 27.5, sigY + 21);
-            
-            pdf.setFontSize(10);
-            pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(22, 163, 74);
-            pdf.text('SIGNED', pageWidth - margin - 15, sigY + 20, { align: 'left' });
-            
-            pdf.setFontSize(9);
-            pdf.setFont('helvetica', 'normal');
-            pdf.setTextColor(107, 114, 128);
-            pdf.text(format(new Date(sig.signed_at), 'MMM d, yyyy h:mm a'), margin + 10, sigY + 44);
-            
-            if (sig.ip_address) {
-              pdf.text(`IP: ${sig.ip_address}`, margin + 80, sigY + 44);
-            }
-          } else {
-            pdf.setFillColor(251, 191, 36);
-            pdf.circle(pageWidth - margin - 25, sigY + 18, 6, 'F');
-            pdf.setFontSize(10);
-            pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(255, 255, 255);
-            pdf.text('...', pageWidth - margin - 28, sigY + 20);
-            
-            pdf.setFontSize(10);
-            pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(251, 191, 36);
-            pdf.text('PENDING', pageWidth - margin - 15, sigY + 20, { align: 'left' });
-          }
-
-          sigY += 60;
-        });
-
-        // Footer
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(156, 163, 175);
-        pdf.text(`${document.title} • ${companySettings?.company_name || 'Company'}`, margin, pageHeight - 15);
-        pdf.text(`Page ${currentPage}`, pageWidth - margin, pageHeight - 15, { align: 'right' });
-        currentPage++;
-      }
-
-      // ===== AUDIT SUMMARY PAGE =====
-      pdf.addPage();
-      
-      pdf.setFillColor(primaryRgb.r, primaryRgb.g, primaryRgb.b);
-      pdf.rect(0, 0, pageWidth, 30, 'F');
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('DOCUMENT AUDIT SUMMARY', margin, 20);
-
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(31, 41, 55);
-      pdf.text('Document Information', margin, 50);
-
-      const auditData = [
-        ['Document ID', docNumber],
-        ['Type', documentTypeLabels[document.document_type] || document.document_type],
-        ['Status', document.status.toUpperCase()],
-        ['Created', format(new Date(document.created_at), 'MMMM d, yyyy h:mm a')],
-        ['Last Modified', format(new Date(document.updated_at), 'MMMM d, yyyy h:mm a')],
-        ['Version', `v${document.version}`],
-        ['Compliance Confirmed', document.compliance_confirmed ? 'Yes' : 'No']
-      ];
-
-      let auditY = 60;
-      auditData.forEach(([label, value]) => {
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(107, 114, 128);
-        pdf.text(label + ':', margin, auditY);
-        pdf.setTextColor(31, 41, 55);
-        pdf.text(value || '', margin + 50, auditY);
-        auditY += 10;
-      });
-
-      // Company footer
-      pdf.setFillColor(243, 244, 246);
-      pdf.rect(0, pageHeight - 35, pageWidth, 35, 'F');
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(107, 114, 128);
-      pdf.text(`This document was generated by ${companySettings?.company_name || 'Company'}`, pageWidth / 2, pageHeight - 22, { align: 'center' });
-      pdf.text(`Generated on ${format(new Date(), 'MMMM d, yyyy h:mm a')}`, pageWidth / 2, pageHeight - 14, { align: 'center' });
-
       // Open PDF in new window for printing
       const pdfBlob = pdf.output('blob');
       const pdfUrl = URL.createObjectURL(pdfBlob);
@@ -1668,7 +375,6 @@ const DocumentView = () => {
           description: 'Allow pop-ups to open the PDF for printing.',
         });
       } else {
-        // Some browsers don't fire "load" reliably for blob PDFs, so we also use a timeout.
         const tryPrint = () => {
           try {
             printWindow.focus();
@@ -1684,7 +390,12 @@ const DocumentView = () => {
       toast({ title: 'Print dialog opened' });
     } catch (error) {
       console.error('Error printing document:', error);
-      toast({ variant: 'destructive', title: 'Failed to print document' });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast({ 
+        variant: 'destructive', 
+        title: 'Failed to print document',
+        description: errorMessage.length > 100 ? errorMessage.slice(0, 100) + '...' : errorMessage
+      });
     } finally {
       setIsPrinting(false);
     }
