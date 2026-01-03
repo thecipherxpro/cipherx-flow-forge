@@ -96,6 +96,8 @@ export type Database = {
           address_line2: string | null
           city: string | null
           company_name: string
+          contact_email: string | null
+          contact_name: string | null
           country: string | null
           created_at: string
           created_by: string | null
@@ -113,6 +115,8 @@ export type Database = {
           address_line2?: string | null
           city?: string | null
           company_name: string
+          contact_email?: string | null
+          contact_name?: string | null
           country?: string | null
           created_at?: string
           created_by?: string | null
@@ -130,6 +134,8 @@ export type Database = {
           address_line2?: string | null
           city?: string | null
           company_name?: string
+          contact_email?: string | null
+          contact_name?: string | null
           country?: string | null
           created_at?: string
           created_by?: string | null
@@ -711,18 +717,21 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_approved: boolean | null
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
+          is_approved?: boolean | null
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
+          is_approved?: boolean | null
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }

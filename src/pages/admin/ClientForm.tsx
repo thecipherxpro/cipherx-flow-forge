@@ -21,6 +21,8 @@ const AdminClientForm = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     company_name: '',
+    contact_name: '',
+    contact_email: '',
     address_line1: '',
     address_line2: '',
     city: '',
@@ -52,6 +54,8 @@ const AdminClientForm = () => {
       
       setFormData({
         company_name: data.company_name || '',
+        contact_name: data.contact_name || '',
+        contact_email: data.contact_email || '',
         address_line1: data.address_line1 || '',
         address_line2: data.address_line2 || '',
         city: data.city || '',
@@ -191,6 +195,37 @@ const AdminClientForm = () => {
                   value={formData.website}
                   onChange={handleChange}
                   placeholder="https://example.com"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle>Primary Contact</CardTitle>
+              <CardDescription>Main contact person for this client</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="contact_name">Full Name</Label>
+                <Input
+                  id="contact_name"
+                  name="contact_name"
+                  value={formData.contact_name}
+                  onChange={handleChange}
+                  placeholder="John Smith"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="contact_email">Email</Label>
+                <Input
+                  id="contact_email"
+                  name="contact_email"
+                  type="email"
+                  value={formData.contact_email}
+                  onChange={handleChange}
+                  placeholder="john@example.com"
                 />
               </div>
               
