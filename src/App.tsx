@@ -19,11 +19,16 @@ import Pending from "@/pages/Pending";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
 import AdminClientForm from "@/pages/admin/ClientForm";
+import AdminClientView from "@/pages/admin/ClientView";
 import AdminProjects from "@/pages/admin/Projects";
+import AdminProjectView from "@/pages/admin/ProjectView";
+import AdminProjectForm from "@/pages/admin/ProjectForm";
 import AdminDocuments from "@/pages/admin/Documents";
 import AdminDocumentBuilder from "@/pages/admin/DocumentBuilder";
 import AdminDocumentView from "@/pages/admin/DocumentView";
 import AdminSubscriptions from "@/pages/admin/Subscriptions";
+import AdminSubscriptionView from "@/pages/admin/SubscriptionView";
+import AdminSubscriptionForm from "@/pages/admin/SubscriptionForm";
 import AdminUsers from "@/pages/admin/Users";
 import AdminSettings from "@/pages/admin/Settings";
 
@@ -63,13 +68,21 @@ const App = () => (
               <Route index element={<AdminDashboard />} />
               <Route path="clients" element={<AdminClients />} />
               <Route path="clients/new" element={<AdminClientForm />} />
+              <Route path="clients/:id" element={<AdminClientView />} />
               <Route path="clients/:id/edit" element={<AdminClientForm />} />
               <Route path="projects" element={<AdminProjects />} />
+              <Route path="projects/new" element={<AdminProjectForm />} />
+              <Route path="projects/:id" element={<AdminProjectView />} />
+              <Route path="projects/:id/edit" element={<AdminProjectForm />} />
               <Route path="documents" element={<AdminDocuments />} />
               <Route path="documents/new" element={<AdminDocumentBuilder />} />
               <Route path="documents/:id" element={<AdminDocumentView />} />
               <Route path="subscriptions" element={<AdminSubscriptions />} />
+              <Route path="subscriptions/new" element={<AdminSubscriptionForm />} />
+              <Route path="subscriptions/:id" element={<AdminSubscriptionView />} />
+              <Route path="subscriptions/:id/edit" element={<AdminSubscriptionForm />} />
               <Route path="users" element={<AdminUsers />} />
+              <Route path="settings" element={<AdminSettings />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
 

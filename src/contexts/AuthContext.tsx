@@ -32,23 +32,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [clientId, setClientId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserRole = async (userId: string): Promise<{ role: AppRole | null; isApproved: boolean }> => {
     try {
       const { data, error } = await supabase
         .from('user_roles')
-        .select('role')
+        .select('role, is_approved')
         .eq('user_id', userId)
         .single();
 
       if (error) {
         console.error('Error fetching user role:', error);
-        return null;
+        return { role: null, isApproved: false };
       }
 
-      return data?.role as AppRole || null;
+      // Only return the role if the user is approved (or if they're admin/staff)
+      const role = data?.role as AppRole || null;
+      const isApproved = data?.is_approved ?? false;
+      
+      // Admin and staff are always considered approved
+      if (role === 'admin' || role === 'staff') {
+        return { role, isApproved: true };
+      }
+      
+      // For clients, check is_approved flag
+      return { role: isApproved ? role : null, isApproved };
     } catch (err) {
       console.error('Error in fetchUserRole:', err);
-      return null;
+      return { role: null, isApproved: false };
     }
   };
 
@@ -82,7 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Defer fetching additional data
         if (session?.user) {
           setTimeout(async () => {
-            const role = await fetchUserRole(session.user.id);
+            const { role } = await fetchUserRole(session.user.id);
             setUserRole(role);
             
             if (role === 'client') {
@@ -107,7 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        const role = await fetchUserRole(session.user.id);
+        const { role } = await fetchUserRole(session.user.id);
         setUserRole(role);
         
         if (role === 'client') {
