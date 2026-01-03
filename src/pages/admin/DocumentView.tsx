@@ -97,7 +97,7 @@ const DocumentView = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('documents')
-        .select('*, clients(company_name, address_line1, address_line2, city, province, postal_code, country, phone)')
+        .select('*, clients(company_name, industry, website, address_line1, address_line2, city, province, postal_code, country, phone)')
         .eq('id', id)
         .single();
       if (error) throw error;
@@ -111,7 +111,7 @@ const DocumentView = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('client_contacts')
-        .select('full_name, email, job_title')
+        .select('full_name, email, phone, job_title')
         .eq('client_id', document?.client_id)
         .eq('is_primary', true)
         .single();
@@ -295,11 +295,13 @@ const DocumentView = () => {
     const clientContactData: ClientContact | null = clientContact ? {
       full_name: clientContact.full_name,
       email: clientContact.email,
+      phone: clientContact.phone || null,
       job_title: clientContact.job_title
     } : null;
 
     const companySettingsData: CompanySettings | null = companySettings ? {
       company_name: companySettings.company_name,
+      description: companySettings.description || null,
       ceo_director_name: companySettings.ceo_director_name,
       business_number: companySettings.business_number,
       email: companySettings.email,
