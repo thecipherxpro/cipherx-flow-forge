@@ -154,6 +154,8 @@ export type Database = {
         Row: {
           address_line1: string | null
           address_line2: string | null
+          business_number: string | null
+          ceo_director_name: string | null
           city: string | null
           company_name: string
           country: string | null
@@ -163,7 +165,6 @@ export type Database = {
           email: string | null
           footer_text: string | null
           id: string
-          legal_name: string | null
           logo_url: string | null
           phone: string | null
           postal_code: string | null
@@ -177,6 +178,8 @@ export type Database = {
         Insert: {
           address_line1?: string | null
           address_line2?: string | null
+          business_number?: string | null
+          ceo_director_name?: string | null
           city?: string | null
           company_name?: string
           country?: string | null
@@ -186,7 +189,6 @@ export type Database = {
           email?: string | null
           footer_text?: string | null
           id?: string
-          legal_name?: string | null
           logo_url?: string | null
           phone?: string | null
           postal_code?: string | null
@@ -200,6 +202,8 @@ export type Database = {
         Update: {
           address_line1?: string | null
           address_line2?: string | null
+          business_number?: string | null
+          ceo_director_name?: string | null
           city?: string | null
           company_name?: string
           country?: string | null
@@ -209,7 +213,6 @@ export type Database = {
           email?: string | null
           footer_text?: string | null
           id?: string
-          legal_name?: string | null
           logo_url?: string | null
           phone?: string | null
           postal_code?: string | null

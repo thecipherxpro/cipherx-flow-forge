@@ -13,7 +13,8 @@ import { Building2, Mail, Phone, Globe, MapPin, Save, Loader2 } from 'lucide-rea
 interface CompanySettingsData {
   id: string;
   company_name: string;
-  legal_name: string | null;
+  ceo_director_name: string | null;
+  business_number: string | null;
   email: string | null;
   phone: string | null;
   website: string | null;
@@ -113,12 +114,21 @@ const CompanySettings = () => {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="legal_name">Legal Name</Label>
+            <Label htmlFor="ceo_director_name">CEO/Director Full Name</Label>
             <Input
-              id="legal_name"
-              value={formData.legal_name || ''}
-              onChange={(e) => handleChange('legal_name', e.target.value)}
-              placeholder="CipherX Solutions Inc."
+              id="ceo_director_name"
+              value={formData.ceo_director_name || ''}
+              onChange={(e) => handleChange('ceo_director_name', e.target.value)}
+              placeholder="John Smith"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="business_number">Business Number (BIN)</Label>
+            <Input
+              id="business_number"
+              value={formData.business_number || ''}
+              onChange={(e) => handleChange('business_number', e.target.value)}
+              placeholder="123456789"
             />
           </div>
           <div className="space-y-2">
