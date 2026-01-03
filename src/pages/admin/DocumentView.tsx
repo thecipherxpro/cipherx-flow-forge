@@ -93,7 +93,7 @@ const DocumentView = () => {
   const [isSigning, setIsSigning] = useState(false);
 
   const { data: document, isLoading: docLoading } = useQuery({
-    queryKey: ['document', id],
+    queryKey: ['document', id, 'with-client-legacy-contact'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('documents')
@@ -107,7 +107,7 @@ const DocumentView = () => {
   });
 
   const { data: clientContact } = useQuery({
-    queryKey: ['client-contact', document?.client_id],
+    queryKey: ['client-contact', document?.client_id, 'primary-or-legacy'],
     queryFn: async () => {
       // First try to get from client_contacts table
       const { data, error } = await supabase
