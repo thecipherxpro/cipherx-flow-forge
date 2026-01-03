@@ -97,7 +97,7 @@ const DocumentView = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('documents')
-        .select('*, clients(company_name, industry, website, address_line1, address_line2, city, province, postal_code, country, phone)')
+        .select('*, clients(company_name, industry, website, address_line1, address_line2, city, province, postal_code, country, phone, contact_name, contact_email)')
         .eq('id', id)
         .single();
       if (error) throw error;
@@ -109,14 +109,32 @@ const DocumentView = () => {
   const { data: clientContact } = useQuery({
     queryKey: ['client-contact', document?.client_id],
     queryFn: async () => {
+      // First try to get from client_contacts table
       const { data, error } = await supabase
         .from('client_contacts')
         .select('full_name, email, phone, job_title')
         .eq('client_id', document?.client_id)
         .eq('is_primary', true)
-        .single();
-      if (error) return null;
-      return data as ClientContact;
+        .maybeSingle();
+      
+      if (data) {
+        return data as ClientContact;
+      }
+      
+      // Fallback to legacy fields in clients table
+      if (document?.clients) {
+        const client = document.clients as any;
+        if (client.contact_name || client.contact_email) {
+          return {
+            full_name: client.contact_name || '',
+            email: client.contact_email || '',
+            phone: client.phone || null,
+            job_title: null
+          } as ClientContact;
+        }
+      }
+      
+      return null;
     },
     enabled: !!document?.client_id
   });
