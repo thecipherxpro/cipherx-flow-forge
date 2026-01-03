@@ -314,64 +314,64 @@ const renderDocumentCoverPage = async (
   const { pageWidth, pageHeight, margin, contentWidth, companySettings, document, clientContact, docNumber, logoData } = opts;
   
   // ===== HEADER SECTION =====
-  let headerY = 18;
+  // Elegant top border accent
+  pdf.setFillColor(31, 41, 55);
+  pdf.rect(0, 0, pageWidth, 3, 'F');
+  
+  let headerY = 20;
   
   // Left side: Logo | Company Name + Description
   let logoEndX = margin;
   if (logoData) {
     try {
-      pdf.addImage(logoData, 'PNG', margin, 12, 18, 18, undefined, 'FAST');
-      logoEndX = margin + 22;
+      pdf.addImage(logoData, 'PNG', margin, 14, 16, 16, undefined, 'FAST');
+      logoEndX = margin + 20;
     } catch {
       // Fallback if logo fails
     }
   }
   
   // Company Name (Bold, larger)
-  pdf.setFontSize(16);
+  pdf.setFontSize(14);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(31, 41, 55);
   pdf.text(sanitizePdfText(companySettings?.company_name || 'CIPHERX SOLUTIONS INC.'), logoEndX, headerY);
   
-  // Company Description (smaller, normal weight)
-  pdf.setFontSize(9);
+  // Company Description (smaller, italic style)
+  pdf.setFontSize(8);
   pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(100, 100, 100);
-  pdf.text(sanitizePdfText(companySettings?.description || '(MSP) IT, Web, Design & Cyber-Security Services'), logoEndX, headerY + 6);
+  pdf.setTextColor(120, 120, 120);
+  pdf.text(sanitizePdfText(companySettings?.description || '(MSP) IT, Web, Design & Cyber-Security Services'), logoEndX, headerY + 5);
   
-  // Right side: Company details (right-aligned)
+  // Right side: Company details (right-aligned, structured)
   const rightX = pageWidth - margin;
-  let rightY = 14;
+  let rightY = 12;
   
-  // CEO/Director Name (Bold)
-  pdf.setFontSize(10);
+  // CEO/Director Name (Bold, prominent)
+  pdf.setFontSize(9);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(31, 41, 55);
   pdf.text(sanitizePdfText(companySettings?.ceo_director_name || 'Director'), rightX, rightY, { align: 'right' });
   rightY += 5;
   
-  // Tax ID
-  pdf.setFontSize(8);
+  // Tax ID - structured format
+  pdf.setFontSize(7);
   pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(80, 80, 80);
-  pdf.text(`(HST/GST) TAX ID: ${sanitizePdfText(companySettings?.tax_number || '706245354RT0001')}`, rightX, rightY, { align: 'right' });
+  pdf.setTextColor(100, 100, 100);
+  pdf.text(`TAX ID: ${sanitizePdfText(companySettings?.tax_number || '706245354RT0001')}`, rightX, rightY, { align: 'right' });
   rightY += 4;
   
-  // Email
-  pdf.text(`Email: ${sanitizePdfText(companySettings?.email || 'info@cpxs.ca')}`, rightX, rightY, { align: 'right' });
+  // Contact info in compact format
+  pdf.text(sanitizePdfText(companySettings?.email || 'info@cpxs.ca'), rightX, rightY, { align: 'right' });
   rightY += 4;
-  
-  // Phone
-  pdf.text(`Phone: ${sanitizePdfText(companySettings?.phone || '6475245320')}`, rightX, rightY, { align: 'right' });
+  pdf.text(sanitizePdfText(companySettings?.phone || '6475245320'), rightX, rightY, { align: 'right' });
   rightY += 4;
-  
-  // Website
-  pdf.text(`Website: ${sanitizePdfText(companySettings?.website || 'cpxs.ca')}`, rightX, rightY, { align: 'right' });
-  rightY += 6;
+  pdf.text(sanitizePdfText(companySettings?.website || 'cpxs.ca'), rightX, rightY, { align: 'right' });
+  rightY += 5;
   
   // Business Address
-  pdf.setFontSize(8);
-  pdf.setTextColor(100, 100, 100);
+  pdf.setFontSize(7);
+  pdf.setTextColor(130, 130, 130);
   const addressParts = [
     companySettings?.address_line1 || '141-3166 Lenworth Dr',
     companySettings?.city || 'Mississauga',
@@ -379,128 +379,163 @@ const renderDocumentCoverPage = async (
   ].filter(Boolean);
   pdf.text(sanitizePdfText(addressParts.join(', ')), rightX, rightY, { align: 'right' });
   
-  // Header separator line
-  pdf.setDrawColor(200, 200, 200);
-  pdf.setLineWidth(0.5);
-  pdf.line(margin, 42, pageWidth - margin, 42);
+  // Elegant header separator
+  pdf.setDrawColor(220, 220, 220);
+  pdf.setLineWidth(0.3);
+  pdf.line(margin, 38, pageWidth - margin, 38);
   
-  // ===== CENTER CONTENT (Left-aligned with reduced spacing) =====
-  let centerY = 60;
+  // ===== CENTER CONTENT (Structured, elegant layout) =====
+  let centerY = 52;
   
-  // Document ID
-  pdf.setFontSize(9);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(100, 100, 100);
-  pdf.text('DOCUMENT ID:', margin, centerY);
+  // Document ID section with subtle background
+  pdf.setFillColor(250, 250, 252);
+  pdf.rect(margin, centerY - 6, contentWidth, 16, 'F');
+  
+  pdf.setFontSize(8);
   pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(130, 130, 130);
+  pdf.text('DOCUMENT ID', margin + 4, centerY);
+  
+  pdf.setFontSize(11);
+  pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(31, 41, 55);
-  pdf.text(docNumber, margin + 32, centerY);
-  centerY += 12;
+  pdf.text(docNumber, margin + 4, centerY + 6);
   
-  // Document Type Badge (smaller, outlined style like in the image)
+  centerY += 22;
+  
+  // Document Type Badge (elegant, minimal)
   const docTypeLabel = (documentTypeLabels[document.document_type] || 'Document').toUpperCase();
-  pdf.setFontSize(9);
-  const badgeWidth = pdf.getTextWidth(docTypeLabel) + 16;
-  const badgeHeight = 10;
+  pdf.setFontSize(8);
+  const badgeWidth = pdf.getTextWidth(docTypeLabel) + 14;
+  const badgeHeight = 8;
   
-  // Outlined badge (light background with border)
-  pdf.setFillColor(240, 248, 255);
-  pdf.setDrawColor(100, 149, 237);
-  pdf.setLineWidth(0.5);
-  pdf.roundedRect(margin, centerY - 7, badgeWidth, badgeHeight, 2, 2, 'FD');
+  // Subtle outlined badge
+  pdf.setFillColor(245, 250, 255);
+  pdf.setDrawColor(180, 200, 230);
+  pdf.setLineWidth(0.4);
+  pdf.roundedRect(margin, centerY - 5.5, badgeWidth, badgeHeight, 1.5, 1.5, 'FD');
   
   pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(70, 130, 180);
-  pdf.text(docTypeLabel, margin + 8, centerY);
+  pdf.setTextColor(80, 120, 170);
+  pdf.text(docTypeLabel, margin + 7, centerY);
   centerY += 14;
   
-  // Document Title (smaller than before)
-  pdf.setFontSize(18);
+  // Document Title (elegant, properly sized)
+  pdf.setFontSize(16);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(31, 41, 55);
-  const titleLines = pdf.splitTextToSize(sanitizePdfText(document.title), contentWidth - 20);
+  const titleLines = pdf.splitTextToSize(sanitizePdfText(document.title), contentWidth - 10);
   pdf.text(titleLines, margin, centerY);
-  centerY += (titleLines.length * 8) + 6;
+  centerY += (titleLines.length * 7) + 10;
   
-  // Service Type
+  // Subtle divider
+  pdf.setDrawColor(230, 230, 230);
+  pdf.setLineWidth(0.2);
+  pdf.line(margin, centerY - 4, margin + 60, centerY - 4);
+  
+  // Service Type - Label normal, Value bold
   const serviceLabel = serviceTypeLabels[document.service_type] || document.service_type;
-  pdf.setFontSize(11);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(80, 80, 80);
-  pdf.text(`SERVICE TYPE: ${sanitizePdfText(serviceLabel)}`, margin, centerY);
-  centerY += 8;
-  
-  // Date
-  pdf.text(`DATE: ${format(new Date(document.created_at), 'MMMM d, yyyy')}`, margin, centerY);
-  
-  // ===== FOOTER SECTION: PREPARED FOR =====
-  pdf.setDrawColor(200, 200, 200);
-  pdf.setLineWidth(0.5);
-  pdf.line(margin, pageHeight - 75, pageWidth - margin, pageHeight - 75);
-  
-  let footerY = pageHeight - 68;
-  
   pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(100, 100, 100);
+  pdf.text('Service Type:', margin, centerY);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(31, 41, 55);
-  pdf.text('PREPARED FOR', margin, footerY);
+  pdf.text(sanitizePdfText(serviceLabel), margin + 28, centerY);
+  centerY += 7;
+  
+  // Date - Label normal, Value bold
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(100, 100, 100);
+  pdf.text('Date:', margin, centerY);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(31, 41, 55);
+  pdf.text(format(new Date(document.created_at), 'MMMM d, yyyy'), margin + 28, centerY);
+  
+  // ===== FOOTER SECTION: PREPARED FOR (Elegant structured layout) =====
+  // Subtle background for footer section
+  pdf.setFillColor(250, 250, 252);
+  pdf.rect(margin, pageHeight - 78, contentWidth, 60, 'F');
+  
+  // Top border accent
+  pdf.setDrawColor(31, 41, 55);
+  pdf.setLineWidth(0.8);
+  pdf.line(margin, pageHeight - 78, pageWidth - margin, pageHeight - 78);
+  
+  let footerY = pageHeight - 70;
+  
+  pdf.setFontSize(9);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(31, 41, 55);
+  pdf.text('PREPARED FOR', margin + 4, footerY);
   
   footerY += 10;
   
-  // Two-column layout
-  const leftCol = margin;
-  const rightCol = pageWidth / 2 + 10;
+  // Two-column layout with elegant spacing
+  const leftCol = margin + 4;
+  const rightCol = pageWidth / 2 + 5;
   
   // Left column: Primary Contact
   let leftY = footerY;
-  pdf.setFontSize(9);
+  pdf.setFontSize(7);
   pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(100, 100, 100);
+  pdf.setTextColor(130, 130, 130);
   pdf.text('PRIMARY CONTACT', leftCol, leftY);
-  leftY += 7;
+  leftY += 6;
   
+  pdf.setFontSize(9);
   pdf.setTextColor(31, 41, 55);
   
   if (clientContact?.full_name) {
     pdf.setFont('helvetica', 'bold');
     pdf.text(sanitizePdfText(clientContact.full_name), leftCol, leftY);
-    leftY += 6;
+    leftY += 5;
   }
   
+  pdf.setFontSize(8);
   pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(80, 80, 80);
   if (clientContact?.email) {
     pdf.text(sanitizePdfText(clientContact.email), leftCol, leftY);
-    leftY += 5;
+    leftY += 4;
   }
   if (clientContact?.phone) {
     pdf.text(sanitizePdfText(clientContact.phone), leftCol, leftY);
   }
   
+  // Vertical divider between columns
+  pdf.setDrawColor(220, 220, 220);
+  pdf.setLineWidth(0.3);
+  pdf.line(pageWidth / 2, footerY - 4, pageWidth / 2, pageHeight - 24);
+  
   // Right column: Company Information
   let rightFooterY = footerY;
   
-  pdf.setFontSize(9);
+  pdf.setFontSize(7);
   pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(100, 100, 100);
-  pdf.text('COMPANY INFORMATION', rightCol, rightFooterY);
-  rightFooterY += 7;
+  pdf.setTextColor(130, 130, 130);
+  pdf.text('COMPANY', rightCol, rightFooterY);
+  rightFooterY += 6;
   
+  pdf.setFontSize(9);
   pdf.setTextColor(31, 41, 55);
   
   if (document.clients?.company_name) {
     pdf.setFont('helvetica', 'bold');
     pdf.text(sanitizePdfText(document.clients.company_name), rightCol, rightFooterY);
-    rightFooterY += 6;
+    rightFooterY += 5;
   }
   
+  pdf.setFontSize(8);
   pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(80, 80, 80);
   if (document.clients?.industry) {
     pdf.text(sanitizePdfText(document.clients.industry), rightCol, rightFooterY);
-    rightFooterY += 5;
+    rightFooterY += 4;
   }
   if (document.clients?.website) {
     pdf.text(sanitizePdfText(document.clients.website), rightCol, rightFooterY);
-    rightFooterY += 5;
+    rightFooterY += 4;
   }
   
   // Client address
