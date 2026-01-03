@@ -300,7 +300,8 @@ const DocumentView = () => {
 
     const companySettingsData: CompanySettings | null = companySettings ? {
       company_name: companySettings.company_name,
-      legal_name: companySettings.legal_name,
+      ceo_director_name: companySettings.ceo_director_name,
+      business_number: companySettings.business_number,
       email: companySettings.email,
       phone: companySettings.phone,
       website: companySettings.website,

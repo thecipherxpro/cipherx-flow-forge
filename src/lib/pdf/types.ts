@@ -34,7 +34,8 @@ export interface Signature {
 
 export interface CompanySettings {
   company_name: string;
-  legal_name: string | null;
+  ceo_director_name: string | null;
+  business_number: string | null;
   email: string | null;
   phone: string | null;
   website: string | null;
