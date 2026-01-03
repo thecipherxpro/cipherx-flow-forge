@@ -45,22 +45,7 @@ export const generateExportPdf = async (options: PdfGeneratorOptions): Promise<j
   const tocEntries: { title: string; page: number }[] = [];
   let currentPageNum = 1;
 
-  // ===== PAGE 1: COMPANY COVER PAGE =====
-  await renderCompanyCoverPage(pdf, {
-    pageWidth,
-    pageHeight,
-    margin,
-    contentWidth,
-    companySettings,
-    docNumber,
-    document,
-    logoData
-  });
-  
-  currentPageNum++;
-  
-  // ===== PAGE 2: DOCUMENT COVER PAGE =====
-  pdf.addPage();
+  // ===== PAGE 1: DOCUMENT COVER PAGE =====
   await renderDocumentCoverPage(pdf, {
     pageWidth,
     pageHeight,
@@ -75,11 +60,11 @@ export const generateExportPdf = async (options: PdfGeneratorOptions): Promise<j
   
   currentPageNum++;
   
-  // ===== PAGE 3: TABLE OF CONTENTS =====
+  // ===== PAGE 2: TABLE OF CONTENTS =====
   pdf.addPage();
   
-  // Build TOC entries - sections start at page 4
-  let pageCounter = 4;
+  // Build TOC entries - sections start at page 3
+  let pageCounter = 3;
   sections.forEach((section, idx) => {
     tocEntries.push({ title: `${idx + 1}. ${section.title}`, page: pageCounter });
     // Estimate pages per section (simplified - 1 page per section)
@@ -310,117 +295,7 @@ export const generateExportPdf = async (options: PdfGeneratorOptions): Promise<j
 };
 
 /**
- * Renders Page 1: Company Cover Page
- */
-const renderCompanyCoverPage = async (
-  pdf: jsPDF,
-  opts: {
-    pageWidth: number;
-    pageHeight: number;
-    margin: number;
-    contentWidth: number;
-    companySettings: PdfGeneratorOptions['companySettings'];
-    docNumber: string;
-    document: PdfGeneratorOptions['document'];
-    logoData: string | null;
-  }
-) => {
-  const { pageWidth, pageHeight, margin, contentWidth, companySettings, docNumber, document, logoData } = opts;
-  
-  // ===== SECTION 1: HEADER =====
-  // Logo and company name
-  let headerY = 25;
-  
-  if (logoData) {
-    try {
-      pdf.addImage(logoData, 'PNG', margin, 15, 25, 25, undefined, 'FAST');
-      headerY = 20;
-    } catch {
-      // Fallback if logo fails
-    }
-  }
-  
-  pdf.setFontSize(22);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(31, 41, 55);
-  pdf.text(sanitizePdfText(companySettings?.company_name || 'CIPHERX SOLUTIONS INC.'), margin + 32, headerY + 5);
-  
-  // Company contact info
-  pdf.setFontSize(9);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(80, 80, 80);
-  
-  const contactLine1 = [
-    companySettings?.website || 'cpxs.ca',
-    companySettings?.phone || '6475245320',
-    companySettings?.email || 'info@cpxs.ca'
-  ].filter(Boolean).join(' | ');
-  pdf.text(sanitizePdfText(contactLine1), margin + 32, headerY + 14);
-  
-  // Business numbers
-  const binLine = `Business Number (BIN): ${companySettings?.business_number || '706245354'}`;
-  const hstLine = `(HST/GST) #: ${companySettings?.tax_number || '706245354RT0001'}`;
-  pdf.text(sanitizePdfText(binLine), margin + 32, headerY + 22);
-  pdf.text(sanitizePdfText(hstLine), margin + 32, headerY + 30);
-  
-  // Separator line
-  pdf.setDrawColor(200, 200, 200);
-  pdf.setLineWidth(0.5);
-  pdf.line(margin, 60, pageWidth - margin, 60);
-  
-  // ===== SECTION 2: DOCUMENT INFO =====
-  const centerY = pageHeight / 2 - 30;
-  
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(100, 100, 100);
-  pdf.text('DOCUMENT ID', pageWidth / 2, centerY, { align: 'center' });
-  
-  pdf.setFontSize(18);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(31, 41, 55);
-  pdf.text(docNumber, pageWidth / 2, centerY + 12, { align: 'center' });
-  
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(100, 100, 100);
-  pdf.text('SERVICE TYPE', pageWidth / 2, centerY + 35, { align: 'center' });
-  
-  pdf.setFontSize(16);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(31, 41, 55);
-  const serviceLabel = serviceTypeLabels[document.service_type] || document.service_type;
-  pdf.text(sanitizePdfText(serviceLabel), pageWidth / 2, centerY + 47, { align: 'center' });
-  
-  // ===== SECTION 3: FOOTER =====
-  pdf.setDrawColor(200, 200, 200);
-  pdf.setLineWidth(0.5);
-  pdf.line(margin, pageHeight - 35, pageWidth - margin, pageHeight - 35);
-  
-  pdf.setFontSize(9);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(80, 80, 80);
-  
-  // Build full address
-  const addressParts = [
-    companySettings?.address_line1 || '141-3166 Lenworth Dr',
-    companySettings?.address_line2,
-    companySettings?.city || 'Mississauga',
-    companySettings?.province || 'Ontario',
-    companySettings?.postal_code || 'L4X 2G1',
-    companySettings?.country || 'Canada'
-  ].filter(Boolean);
-  
-  const addressLine = addressParts.join(', ');
-  pdf.text(sanitizePdfText(addressLine), pageWidth / 2, pageHeight - 25, { align: 'center' });
-  
-  pdf.setFontSize(8);
-  pdf.setTextColor(120, 120, 120);
-  pdf.text('Company Business Address', pageWidth / 2, pageHeight - 18, { align: 'center' });
-};
-
-/**
- * Renders Page 2: Document Cover Page
+ * Renders Page 1: Document Cover Page
  */
 const renderDocumentCoverPage = async (
   pdf: jsPDF,
@@ -439,146 +314,191 @@ const renderDocumentCoverPage = async (
   const { pageWidth, pageHeight, margin, contentWidth, companySettings, document, clientContact, docNumber, logoData } = opts;
   
   // ===== HEADER SECTION =====
-  // Left: Logo and company name
+  let headerY = 18;
+  
+  // Left side: Logo | Company Name + Description
   let logoEndX = margin;
   if (logoData) {
     try {
-      pdf.addImage(logoData, 'PNG', margin, 15, 20, 20, undefined, 'FAST');
-      logoEndX = margin + 25;
+      pdf.addImage(logoData, 'PNG', margin, 12, 18, 18, undefined, 'FAST');
+      logoEndX = margin + 22;
     } catch {
       // Fallback if logo fails
     }
   }
   
-  pdf.setFontSize(14);
+  // Company Name (Bold, larger)
+  pdf.setFontSize(16);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(31, 41, 55);
-  pdf.text(sanitizePdfText(companySettings?.company_name || 'CIPHERX SOLUTIONS INC.'), logoEndX, 23);
+  pdf.text(sanitizePdfText(companySettings?.company_name || 'CIPHERX SOLUTIONS INC.'), logoEndX, headerY);
   
+  // Company Description (smaller, normal weight)
   pdf.setFontSize(9);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(100, 100, 100);
-  pdf.text(sanitizePdfText(companySettings?.description || '(MSP) IT, Web, Design & Cyber-Security Services'), logoEndX, 31);
+  pdf.text(sanitizePdfText(companySettings?.description || '(MSP) IT, Web, Design & Cyber-Security Services'), logoEndX, headerY + 6);
   
-  // Right: Document number
+  // Right side: Company details (right-aligned)
+  const rightX = pageWidth - margin;
+  let rightY = 14;
+  
+  // CEO/Director Name (Bold)
   pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(31, 41, 55);
+  pdf.text(sanitizePdfText(companySettings?.ceo_director_name || 'Director'), rightX, rightY, { align: 'right' });
+  rightY += 5;
+  
+  // Tax ID
+  pdf.setFontSize(8);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(80, 80, 80);
+  pdf.text(`(HST/GST) TAX ID: ${sanitizePdfText(companySettings?.tax_number || '706245354RT0001')}`, rightX, rightY, { align: 'right' });
+  rightY += 4;
+  
+  // Email
+  pdf.text(`Email: ${sanitizePdfText(companySettings?.email || 'info@cpxs.ca')}`, rightX, rightY, { align: 'right' });
+  rightY += 4;
+  
+  // Phone
+  pdf.text(`Phone: ${sanitizePdfText(companySettings?.phone || '6475245320')}`, rightX, rightY, { align: 'right' });
+  rightY += 4;
+  
+  // Website
+  pdf.text(`Website: ${sanitizePdfText(companySettings?.website || 'cpxs.ca')}`, rightX, rightY, { align: 'right' });
+  rightY += 6;
+  
+  // Business Address
+  pdf.setFontSize(8);
+  pdf.setTextColor(100, 100, 100);
+  const addressParts = [
+    companySettings?.address_line1 || '141-3166 Lenworth Dr',
+    companySettings?.city || 'Mississauga',
+    companySettings?.postal_code || 'L4X 2G1'
+  ].filter(Boolean);
+  pdf.text(sanitizePdfText(addressParts.join(', ')), rightX, rightY, { align: 'right' });
+  
+  // Header separator line
+  pdf.setDrawColor(200, 200, 200);
+  pdf.setLineWidth(0.5);
+  pdf.line(margin, 42, pageWidth - margin, 42);
+  
+  // ===== CENTER CONTENT (Left-aligned with reduced spacing) =====
+  let centerY = 60;
+  
+  // Document ID
+  pdf.setFontSize(9);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(100, 100, 100);
-  pdf.text(docNumber, pageWidth - margin, 20, { align: 'right' });
+  pdf.text('DOCUMENT ID:', margin, centerY);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(31, 41, 55);
+  pdf.text(docNumber, margin + 32, centerY);
+  centerY += 12;
   
-  // ===== CENTER CONTENT =====
-  const centerY = pageHeight / 2 - 40;
-  
-  // Document Type Badge
+  // Document Type Badge (smaller, outlined style like in the image)
   const docTypeLabel = (documentTypeLabels[document.document_type] || 'Document').toUpperCase();
-  pdf.setFillColor(31, 41, 55);
-  const badgeWidth = pdf.getTextWidth(docTypeLabel) + 20;
-  pdf.roundedRect(pageWidth / 2 - badgeWidth / 2, centerY - 8, badgeWidth, 14, 2, 2, 'F');
+  pdf.setFontSize(9);
+  const badgeWidth = pdf.getTextWidth(docTypeLabel) + 16;
+  const badgeHeight = 10;
   
-  pdf.setFontSize(10);
+  // Outlined badge (light background with border)
+  pdf.setFillColor(240, 248, 255);
+  pdf.setDrawColor(100, 149, 237);
+  pdf.setLineWidth(0.5);
+  pdf.roundedRect(margin, centerY - 7, badgeWidth, badgeHeight, 2, 2, 'FD');
+  
   pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(255, 255, 255);
-  pdf.text(docTypeLabel, pageWidth / 2, centerY, { align: 'center' });
+  pdf.setTextColor(70, 130, 180);
+  pdf.text(docTypeLabel, margin + 8, centerY);
+  centerY += 14;
   
-  // Document Title (H2)
-  pdf.setFontSize(24);
+  // Document Title (smaller than before)
+  pdf.setFontSize(18);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(31, 41, 55);
   const titleLines = pdf.splitTextToSize(sanitizePdfText(document.title), contentWidth - 20);
-  pdf.text(titleLines, pageWidth / 2, centerY + 25, { align: 'center' });
+  pdf.text(titleLines, margin, centerY);
+  centerY += (titleLines.length * 8) + 6;
   
-  // Service Type (H4)
+  // Service Type
   const serviceLabel = serviceTypeLabels[document.service_type] || document.service_type;
-  pdf.setFontSize(14);
+  pdf.setFontSize(11);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(80, 80, 80);
-  const serviceLabelY = centerY + 25 + (titleLines.length * 10) + 15;
-  pdf.text(sanitizePdfText(serviceLabel), pageWidth / 2, serviceLabelY, { align: 'center' });
+  pdf.text(`SERVICE TYPE: ${sanitizePdfText(serviceLabel)}`, margin, centerY);
+  centerY += 8;
   
   // Date
-  pdf.setFontSize(11);
-  pdf.setTextColor(100, 100, 100);
-  pdf.text(format(new Date(document.created_at), 'MMMM d, yyyy'), pageWidth / 2, serviceLabelY + 15, { align: 'center' });
+  pdf.text(`DATE: ${format(new Date(document.created_at), 'MMMM d, yyyy')}`, margin, centerY);
   
-  // ===== FOOTER SECTION =====
+  // ===== FOOTER SECTION: PREPARED FOR =====
   pdf.setDrawColor(200, 200, 200);
   pdf.setLineWidth(0.5);
-  pdf.line(margin, pageHeight - 90, pageWidth - margin, pageHeight - 90);
+  pdf.line(margin, pageHeight - 75, pageWidth - margin, pageHeight - 75);
   
-  // Prepared For section
-  let footerY = pageHeight - 82;
+  let footerY = pageHeight - 68;
   
   pdf.setFontSize(10);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(31, 41, 55);
   pdf.text('PREPARED FOR', margin, footerY);
   
-  footerY += 8;
+  footerY += 10;
   
   // Two-column layout
   const leftCol = margin;
   const rightCol = pageWidth / 2 + 10;
   
   // Left column: Primary Contact
+  let leftY = footerY;
   pdf.setFontSize(9);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(100, 100, 100);
-  pdf.text('PRIMARY CONTACT', leftCol, footerY);
-  footerY += 6;
+  pdf.text('PRIMARY CONTACT', leftCol, leftY);
+  leftY += 7;
   
-  pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(31, 41, 55);
   
   if (clientContact?.full_name) {
     pdf.setFont('helvetica', 'bold');
-    pdf.text(sanitizePdfText(clientContact.full_name), leftCol, footerY);
-    pdf.setFont('helvetica', 'normal');
-    footerY += 5;
+    pdf.text(sanitizePdfText(clientContact.full_name), leftCol, leftY);
+    leftY += 6;
   }
-  if (clientContact?.job_title) {
-    pdf.setFontSize(8);
-    pdf.setTextColor(100, 100, 100);
-    pdf.text(sanitizePdfText(clientContact.job_title), leftCol, footerY);
-    footerY += 5;
-  }
+  
+  pdf.setFont('helvetica', 'normal');
   if (clientContact?.email) {
-    pdf.setFontSize(9);
-    pdf.setTextColor(31, 41, 55);
-    pdf.text(sanitizePdfText(clientContact.email), leftCol, footerY);
-    footerY += 5;
+    pdf.text(sanitizePdfText(clientContact.email), leftCol, leftY);
+    leftY += 5;
   }
   if (clientContact?.phone) {
-    pdf.text(sanitizePdfText(clientContact.phone), leftCol, footerY);
-    footerY += 5;
+    pdf.text(sanitizePdfText(clientContact.phone), leftCol, leftY);
   }
   
   // Right column: Company Information
-  let rightFooterY = pageHeight - 74;
+  let rightFooterY = footerY;
   
   pdf.setFontSize(9);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(100, 100, 100);
   pdf.text('COMPANY INFORMATION', rightCol, rightFooterY);
-  rightFooterY += 6;
+  rightFooterY += 7;
   
-  pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(31, 41, 55);
   
   if (document.clients?.company_name) {
     pdf.setFont('helvetica', 'bold');
     pdf.text(sanitizePdfText(document.clients.company_name), rightCol, rightFooterY);
-    pdf.setFont('helvetica', 'normal');
-    rightFooterY += 5;
+    rightFooterY += 6;
   }
+  
+  pdf.setFont('helvetica', 'normal');
   if (document.clients?.industry) {
-    pdf.setFontSize(8);
-    pdf.setTextColor(100, 100, 100);
     pdf.text(sanitizePdfText(document.clients.industry), rightCol, rightFooterY);
     rightFooterY += 5;
   }
   if (document.clients?.website) {
-    pdf.setFontSize(9);
-    pdf.setTextColor(31, 41, 55);
     pdf.text(sanitizePdfText(document.clients.website), rightCol, rightFooterY);
     rightFooterY += 5;
   }
@@ -593,21 +513,17 @@ const renderDocumentCoverPage = async (
   ].filter(Boolean);
   
   if (clientAddressParts.length > 0) {
-    pdf.text(sanitizePdfText(clientAddressParts.join(', ')), rightCol, rightFooterY);
+    const addressLine = sanitizePdfText(clientAddressParts.join(', '));
+    const wrappedAddress = pdf.splitTextToSize(addressLine, (pageWidth / 2) - margin - 10);
+    wrappedAddress.forEach((line: string) => {
+      pdf.text(line, rightCol, rightFooterY);
+      rightFooterY += 5;
+    });
   }
-  
-  // Date Issued at bottom
-  pdf.setDrawColor(200, 200, 200);
-  pdf.line(margin, pageHeight - 22, pageWidth - margin, pageHeight - 22);
-  
-  pdf.setFontSize(9);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setTextColor(100, 100, 100);
-  pdf.text(`Date Issued: ${format(new Date(), 'MMMM d, yyyy')}`, pageWidth / 2, pageHeight - 14, { align: 'center' });
 };
 
 /**
- * Renders Page 3: Table of Contents
+ * Renders Page 2: Table of Contents
  */
 const renderTableOfContents = (
   pdf: jsPDF,
@@ -690,7 +606,7 @@ const renderTableOfContents = (
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(100, 100, 100);
   pdf.text('141-3166 Lenworth Dr | cpxs.ca | 6475245320 | info@cpxs.ca', pageWidth / 2, pageHeight - 12, { align: 'center' });
-  pdf.text('Page 3', pageWidth - margin, pageHeight - 12, { align: 'right' });
+  pdf.text('Page 2', pageWidth - margin, pageHeight - 12, { align: 'right' });
 };
 
 const generateDocumentNumber = (document: PdfGeneratorOptions['document']): string => {
