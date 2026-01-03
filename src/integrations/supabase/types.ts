@@ -162,6 +162,7 @@ export type Database = {
           created_at: string
           default_payment_terms: number | null
           default_tax_rate: number | null
+          description: string | null
           email: string | null
           footer_text: string | null
           id: string
@@ -186,6 +187,7 @@ export type Database = {
           created_at?: string
           default_payment_terms?: number | null
           default_tax_rate?: number | null
+          description?: string | null
           email?: string | null
           footer_text?: string | null
           id?: string
@@ -210,6 +212,7 @@ export type Database = {
           created_at?: string
           default_payment_terms?: number | null
           default_tax_rate?: number | null
+          description?: string | null
           email?: string | null
           footer_text?: string | null
           id?: string

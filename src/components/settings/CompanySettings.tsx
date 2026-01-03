@@ -13,6 +13,7 @@ import { Building2, Mail, Phone, Globe, MapPin, Save, Loader2 } from "lucide-rea
 interface CompanySettingsData {
   id: string;
   company_name: string;
+  description: string | null;
   ceo_director_name: string | null;
   business_number: string | null;
   email: string | null;
@@ -105,6 +106,15 @@ const CompanySettings = () => {
               value={formData.company_name || ""}
               onChange={(e) => handleChange("company_name", e.target.value)}
               placeholder="CipherX Solutions Inc."
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="description">Company Description</Label>
+            <Input
+              id="description"
+              value={formData.description || ""}
+              onChange={(e) => handleChange("description", e.target.value)}
+              placeholder="(MSP) IT, Web, Design & Cyber-Security Services"
             />
           </div>
           <div className="space-y-2">
