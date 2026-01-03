@@ -102,7 +102,7 @@ export const sanitizePdfText = (input: unknown): string => {
   
   // Remove any remaining non-Latin1 characters that could cause issues
   // Keep basic ASCII and extended Latin (Latin-1 Supplement)
-  text = text.replace(/[^\\x00-\\xFF]/g, '');
+  text = text.replace(/[^\x00-\xFF]/g, '');
   
   return text;
 };
