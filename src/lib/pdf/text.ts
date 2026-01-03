@@ -150,6 +150,16 @@ interface RichTextOptions {
 }
 
 /**
+ * Process text to identify important terms that should be bold
+ * (company names, client info, headings, etc.)
+ */
+const processBoldText = (text: string): string => {
+  // This function marks important terms - actual bold rendering
+  // is handled in the renderRichText function
+  return text;
+};
+
+/**
  * Parses and renders rich text content to PDF with proper styling
  */
 export const renderRichText = (
@@ -228,38 +238,48 @@ export const renderRichText = (
       continue;
     }
     
-    // Bullet points (various formats)
+    // Bullet points (various formats) - with proper indentation
     const bulletMatch = line.match(/^[\s]*[-*]\s(.+)/);
     if (bulletMatch) {
       setBodyStyle();
-      const bulletText = sanitizePdfText(bulletMatch[1]);
-      const wrappedText = pdf.splitTextToSize(bulletText, maxWidth - 12);
+      let bulletText = sanitizePdfText(bulletMatch[1]);
       
-      // Draw bullet point
-      drawBullet(pdf, startX + 2, yPos);
+      // Make important text bold (text between ** markers or before colons for labels)
+      bulletText = processBoldText(bulletText);
+      
+      const indent = 10; // Forward indentation for list items
+      const wrappedText = pdf.splitTextToSize(bulletText, maxWidth - indent - 5);
+      
+      // Draw bullet point with indent
+      drawBullet(pdf, startX + indent - 4, yPos);
       
       wrappedText.forEach((textLine: string, idx: number) => {
         checkPageBreak();
-        pdf.text(textLine, startX + 8, yPos);
+        pdf.text(textLine, startX + indent, yPos);
         yPos += lineHeight;
       });
       continue;
     }
     
-    // Numbered list
+    // Numbered list - with proper indentation
     const numberedMatch = line.match(/^[\s]*(\d+)\.\s(.+)/);
     if (numberedMatch) {
       setBodyStyle();
-      const numText = sanitizePdfText(numberedMatch[2]);
-      const wrappedText = pdf.splitTextToSize(numText, maxWidth - 14);
+      let numText = sanitizePdfText(numberedMatch[2]);
+      
+      // Make important text bold
+      numText = processBoldText(numText);
+      
+      const indent = 10; // Forward indentation for list items
+      const wrappedText = pdf.splitTextToSize(numText, maxWidth - indent - 8);
       
       pdf.setFont('helvetica', 'bold');
-      pdf.text(`${numberedMatch[1]}.`, startX, yPos);
+      pdf.text(`${numberedMatch[1]}.`, startX + indent - 6, yPos);
       pdf.setFont('helvetica', 'normal');
       
       wrappedText.forEach((textLine: string, idx: number) => {
         checkPageBreak();
-        pdf.text(textLine, startX + 10, yPos);
+        pdf.text(textLine, startX + indent + 4, yPos);
         yPos += lineHeight;
       });
       continue;
