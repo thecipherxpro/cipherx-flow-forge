@@ -18,6 +18,7 @@ export interface Signature {
   signer_name: string;
   signer_email: string;
   signer_role: string;
+  position?: string;
   signed_at: string | null;
   is_required: boolean;
   signature_data: string | null;

@@ -300,7 +300,7 @@ export const generateExportPdf = async (options: PdfGeneratorOptions): Promise<j
     pdf.text(sanitizePdfText(companySettings?.company_name || 'CipherX Solutions Inc.'), leftCol, sigY);
     sigY += 8;
     
-    // Signer details
+    // Signer details with position
     const mainCipherxSigner = cipherxSigners[0] || signatures.find(s => s.signer_role.toLowerCase() !== 'client');
     if (mainCipherxSigner) {
       pdf.setFontSize(9);
@@ -310,7 +310,9 @@ export const generateExportPdf = async (options: PdfGeneratorOptions): Promise<j
       sigY += 5;
       pdf.text(sanitizePdfText(mainCipherxSigner.signer_email), leftCol, sigY);
       sigY += 5;
-      pdf.text(sanitizePdfText(mainCipherxSigner.signer_role), leftCol, sigY);
+      // Show position if available (from signature's role or separate position field)
+      const signerPosition = (mainCipherxSigner as any).position || mainCipherxSigner.signer_role;
+      pdf.text(sanitizePdfText(signerPosition), leftCol, sigY);
     }
     
     // CLIENT SECTION (right column)
