@@ -19,6 +19,7 @@ import {
   FolderKanban,
   FileText,
   CreditCard,
+  Building2,
   LogOut,
   Menu,
   X,
@@ -28,6 +29,7 @@ import { cn } from '@/lib/utils';
 
 const sidebarLinks = [
   { to: '/portal', icon: LayoutDashboard, label: 'Dashboard', end: true },
+  { to: '/portal/profile', icon: Building2, label: 'Profile' },
   { to: '/portal/projects', icon: FolderKanban, label: 'Projects' },
   { to: '/portal/documents', icon: FileText, label: 'Documents' },
   { to: '/portal/subscriptions', icon: CreditCard, label: 'Subscriptions' },

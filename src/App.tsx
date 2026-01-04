@@ -37,6 +37,13 @@ import StaffDashboard from "@/pages/staff/Dashboard";
 
 // Portal pages
 import PortalDashboard from "@/pages/portal/Dashboard";
+import PortalProfile from "@/pages/portal/Profile";
+import PortalProjects from "@/pages/portal/Projects";
+import PortalProjectView from "@/pages/portal/ProjectView";
+import PortalDocuments from "@/pages/portal/Documents";
+import PortalDocumentView from "@/pages/portal/DocumentView";
+import PortalSubscriptions from "@/pages/portal/Subscriptions";
+import PortalSubscriptionView from "@/pages/portal/SubscriptionView";
 
 // Public pages
 import SignDocument from "@/pages/SignDocument";
@@ -105,9 +112,13 @@ const App = () => (
               </ProtectedRoute>
             }>
               <Route index element={<PortalDashboard />} />
-              <Route path="projects" element={<AdminProjects />} />
-              <Route path="documents" element={<AdminDocuments />} />
-              <Route path="subscriptions" element={<AdminSubscriptions />} />
+              <Route path="profile" element={<PortalProfile />} />
+              <Route path="projects" element={<PortalProjects />} />
+              <Route path="projects/:id" element={<PortalProjectView />} />
+              <Route path="documents" element={<PortalDocuments />} />
+              <Route path="documents/:id" element={<PortalDocumentView />} />
+              <Route path="subscriptions" element={<PortalSubscriptions />} />
+              <Route path="subscriptions/:id" element={<PortalSubscriptionView />} />
             </Route>
 
             {/* Catch-all */}
