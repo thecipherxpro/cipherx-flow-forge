@@ -38,23 +38,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('user_roles')
         .select('role, is_approved')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching user role:', error);
         return { role: null, isApproved: false };
       }
 
-      // Only return the role if the user is approved (or if they're admin/staff)
-      const role = data?.role as AppRole || null;
-      const isApproved = data?.is_approved ?? false;
+      if (!data) {
+        return { role: null, isApproved: false };
+      }
+
+      const role = data.role as AppRole;
+      const isApproved = data.is_approved ?? false;
       
-      // Admin and staff are always considered approved
-      if (role === 'admin' || role === 'staff') {
+      // Admin and staff need approval, clients need approval AND client_users assignment
+      if (role === 'admin') {
         return { role, isApproved: true };
       }
       
-      // For clients, check is_approved flag
+      if (role === 'staff') {
+        return { role: isApproved ? role : null, isApproved };
+      }
+      
+      // For clients, check is_approved - they can access portal even without client_users
+      // The portal will show empty state if no clientId is assigned
       return { role: isApproved ? role : null, isApproved };
     } catch (err) {
       console.error('Error in fetchUserRole:', err);
