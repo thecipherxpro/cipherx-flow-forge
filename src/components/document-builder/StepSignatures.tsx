@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Trash2, CalendarIcon, Building2, User, Mail, Loader2 } from 'lucide-react';
+import { Trash2, CalendarIcon, Building2, User, Mail, Loader2, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +46,14 @@ interface CompanySigner {
   is_active: boolean;
 }
 
+interface ClientContact {
+  id: string;
+  full_name: string;
+  email: string;
+  job_title: string | null;
+  is_primary: boolean | null;
+}
+
 interface Props {
   signers: Signer[];
   onChange: (signers: Signer[]) => void;
@@ -55,6 +63,8 @@ interface Props {
 }
 
 export function StepSignatures({ signers, onChange, client, expiresAt, onExpiresAtChange }: Props) {
+  const [selectedClientContact, setSelectedClientContact] = useState<string>('');
+
   const { data: companySigners, isLoading } = useQuery({
     queryKey: ['company-signers-active'],
     queryFn: async () => {
@@ -66,6 +76,21 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
       if (error) throw error;
       return data as CompanySigner[];
     },
+  });
+
+  const { data: clientContacts } = useQuery({
+    queryKey: ['client-contacts', client?.id],
+    queryFn: async () => {
+      if (!client?.id) return [];
+      const { data, error } = await supabase
+        .from('client_contacts')
+        .select('*')
+        .eq('client_id', client.id)
+        .order('is_primary', { ascending: false });
+      if (error) throw error;
+      return data as ClientContact[];
+    },
+    enabled: !!client?.id,
   });
 
   useEffect(() => {
@@ -103,12 +128,51 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
     onChange([...signers, newSigner]);
   };
 
+  const addClientContact = () => {
+    if (!selectedClientContact) return;
+    
+    const contact = clientContacts?.find(c => c.id === selectedClientContact);
+    if (!contact) return;
+
+    // Check if already added
+    if (signers.some(s => s.email === contact.email && s.type === 'client')) return;
+
+    const newSigner: Signer = {
+      id: `client_contact_${contact.id}`,
+      name: contact.full_name,
+      email: contact.email,
+      role: contact.job_title || 'Client Representative',
+      position: contact.job_title || undefined,
+      isRequired: true,
+      type: 'client',
+    };
+    onChange([...signers, newSigner]);
+    setSelectedClientContact('');
+  };
+
+  const addPrimaryClientContact = () => {
+    if (!client?.contact_name || !client?.contact_email) return;
+    
+    // Check if already added
+    if (signers.some(s => s.email === client.contact_email && s.type === 'client')) return;
+
+    const newSigner: Signer = {
+      id: `client_primary_${client.id}`,
+      name: client.contact_name,
+      email: client.contact_email,
+      role: 'Client Representative',
+      isRequired: true,
+      type: 'client',
+    };
+    onChange([...signers, newSigner]);
+  };
+
   const removeSigner = (id: string) => {
     onChange(signers.filter(s => s.id !== id));
   };
 
   const cipherxSigners = signers.filter(s => s.type === 'cipherx');
-  const clientSigner = signers.find(s => s.type === 'client');
+  const clientSignersList = signers.filter(s => s.type === 'client');
 
   const clientAddress = client ? [
     client.address_line1,
@@ -116,6 +180,14 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
     client.province,
     client.postal_code,
   ].filter(Boolean).join(', ') : '';
+
+  // Filter out contacts that are already added as signers
+  const availableContacts = clientContacts?.filter(
+    contact => !signers.some(s => s.email === contact.email && s.type === 'client')
+  ) || [];
+
+  const canAddPrimaryContact = client?.contact_name && client?.contact_email && 
+    !signers.some(s => s.email === client.contact_email && s.type === 'client');
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -175,55 +247,96 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
           </CardContent>
         </Card>
 
-        {/* Client Signer */}
+        {/* Client Signers */}
         <Card>
           <CardHeader className="pb-3 sm:pb-4">
-            <CardTitle className="text-base sm:text-lg">Client Signer</CardTitle>
+            <CardTitle className="text-base sm:text-lg">Client Signers</CardTitle>
             <CardDescription className="text-xs sm:text-sm">
-              Auto-populated from {client?.company_name || 'selected client'}
+              Add signers from {client?.company_name || 'selected client'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 sm:space-y-4">
             {client ? (
               <div className="space-y-3 sm:space-y-4">
+                {/* Client Company Info */}
                 <div className="p-3 sm:p-4 border rounded-lg bg-muted/30">
-                  <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                  <div className="flex items-center gap-2 sm:gap-3 mb-2">
                     <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
                       <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                     </div>
                     <div className="min-w-0">
                       <p className="font-semibold text-sm sm:text-base truncate">{client.company_name}</p>
-                      <Badge variant="outline" className="text-[10px] sm:text-xs">Client</Badge>
+                      {clientAddress && (
+                        <p className="text-xs text-muted-foreground truncate">{clientAddress}</p>
+                      )}
                     </div>
-                  </div>
-                  
-                  <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
-                    {client.contact_name && (
-                      <div className="flex items-center gap-2">
-                        <User className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate">{client.contact_name}</span>
-                      </div>
-                    )}
-                    {client.contact_email && (
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate">{client.contact_email}</span>
-                      </div>
-                    )}
-                    {clientAddress && (
-                      <div className="flex items-start gap-2">
-                        <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                        <span className="text-muted-foreground">{clientAddress}</span>
-                      </div>
-                    )}
                   </div>
                 </div>
 
-                {!client.contact_name || !client.contact_email ? (
+                {/* Added Client Signers */}
+                {clientSignersList.map((signer) => (
+                  <div key={signer.id} className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 border rounded-lg bg-muted/30">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                      <User className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm sm:text-base truncate">{signer.name}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{signer.email}</p>
+                      <Badge variant="outline" className="mt-1 text-[10px] sm:text-xs">{signer.role}</Badge>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0" onClick={() => removeSigner(signer.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+
+                {/* Add from contacts dropdown */}
+                {availableContacts.length > 0 && (
+                  <div className="flex gap-2">
+                    <Select value={selectedClientContact} onValueChange={setSelectedClientContact}>
+                      <SelectTrigger className="flex-1 text-sm">
+                        <SelectValue placeholder="Select contact..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableContacts.map((contact) => (
+                          <SelectItem key={contact.id} value={contact.id}>
+                            <div className="flex items-center gap-2">
+                              <span className="truncate">{contact.full_name}</span>
+                              {contact.job_title && (
+                                <span className="text-muted-foreground text-xs">- {contact.job_title}</span>
+                              )}
+                              {contact.is_primary && (
+                                <Badge variant="secondary" className="text-[10px]">Primary</Badge>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button size="sm" onClick={addClientContact} disabled={!selectedClientContact}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Add primary contact button */}
+                {canAddPrimaryContact && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={addPrimaryClientContact}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add {client.contact_name} (Primary)
+                  </Button>
+                )}
+
+                {clientSignersList.length === 0 && !canAddPrimaryContact && availableContacts.length === 0 && (
                   <p className="text-xs sm:text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 sm:p-3 rounded-lg">
-                    ⚠️ Client contact information is incomplete. Please update the client record.
+                    No client contacts available. Please add contacts to the client record.
                   </p>
-                ) : null}
+                )}
               </div>
             ) : (
               <div className="text-center py-6 sm:py-8 text-muted-foreground">
