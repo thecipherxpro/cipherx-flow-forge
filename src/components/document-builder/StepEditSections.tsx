@@ -1,20 +1,20 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Lock, Unlock, Plus, Trash2, GripVertical, ChevronUp, ChevronDown, Edit2, Check, X } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, Edit2, Check, X } from 'lucide-react';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import type { TemplateSection } from '@/lib/templates/service-templates';
 
 interface Props {
   sections: TemplateSection[];
   onChange: (sections: TemplateSection[]) => void;
-  processContent: (content: string) => string;
+  processContent?: (content: string) => string;
 }
 
-export function StepEditSections({ sections, onChange, processContent }: Props) {
+export function StepEditSections({ sections, onChange }: Props) {
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [tempTitle, setTempTitle] = useState('');
@@ -37,7 +37,7 @@ export function StepEditSections({ sections, onChange, processContent }: Props) 
     const newSection: TemplateSection = {
       key: `custom_${Date.now()}`,
       title: 'New Custom Section',
-      content: 'Enter your custom content here...',
+      content: '<p>Enter your custom content here...</p>',
       isLocked: false,
       isRequired: false,
       sortOrder: sections.length,
@@ -75,9 +75,7 @@ export function StepEditSections({ sections, onChange, processContent }: Props) 
             <div>
               <CardTitle className="text-lg">Document Sections</CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                <span className="inline-flex items-center gap-1"><Lock className="h-3 w-3" /> {sections.filter(s => s.isLocked).length} locked</span>
-                <span className="mx-2">•</span>
-                <span className="inline-flex items-center gap-1"><Unlock className="h-3 w-3" /> {sections.filter(s => !s.isLocked).length} editable</span>
+                {sections.length} sections • All sections are fully editable
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={addCustomSection}>
@@ -113,12 +111,6 @@ export function StepEditSections({ sections, onChange, processContent }: Props) 
                   </div>
                   <AccordionTrigger className="px-4 hover:no-underline flex-1">
                     <div className="flex items-center gap-3 flex-1">
-                      {section.isLocked ? (
-                        <Lock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      ) : (
-                        <Unlock className="h-4 w-4 text-primary flex-shrink-0" />
-                      )}
-                      
                       {editingTitle === section.key ? (
                         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                           <Input
@@ -137,67 +129,54 @@ export function StepEditSections({ sections, onChange, processContent }: Props) 
                       ) : (
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{section.title}</span>
-                          {!section.isLocked && (
-                            <Button 
-                              size="icon" 
-                              variant="ghost" 
-                              className="h-5 w-5 opacity-0 group-hover:opacity-100"
-                              onClick={(e) => { e.stopPropagation(); startEditingTitle(section.key, section.title); }}
-                            >
-                              <Edit2 className="h-3 w-3" />
-                            </Button>
-                          )}
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-5 w-5"
+                            onClick={(e) => { e.stopPropagation(); startEditingTitle(section.key, section.title); }}
+                          >
+                            <Edit2 className="h-3 w-3" />
+                          </Button>
                         </div>
                       )}
                       
                       <div className="flex gap-2 ml-auto mr-4">
                         {section.isRequired && <Badge variant="secondary">Required</Badge>}
-                        {section.isLocked && <Badge variant="outline">Legal</Badge>}
                         {section.key.startsWith('custom_') && <Badge className="bg-primary/10 text-primary hover:bg-primary/20">Custom</Badge>}
                       </div>
                     </div>
                   </AccordionTrigger>
                 </div>
                 <AccordionContent className="px-4 pb-4 pt-2 ml-10">
-                  {section.isLocked ? (
-                    <div className="bg-muted/30 p-4 rounded-lg border border-dashed">
-                      <p className="text-xs text-muted-foreground mb-3 flex items-center gap-2">
-                        <Lock className="h-3 w-3" />
-                        This section contains protected legal text and cannot be modified.
-                      </p>
-                      <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap text-sm leading-relaxed">
-                        {processContent(section.content)}
+                  <div className="space-y-3">
+                    <RichTextEditor
+                      value={section.content}
+                      onChange={(content) => updateSection(section.key, content)}
+                      minHeight="250px"
+                    />
+                    <div className="flex justify-between items-center">
+                      <div className="flex gap-2 flex-wrap">
+                        <Badge variant="outline" className="text-xs font-mono cursor-help" title="Client company name">{'{{CLIENT_NAME}}'}</Badge>
+                        <Badge variant="outline" className="text-xs font-mono cursor-help" title="Current date">{'{{DATE}}'}</Badge>
+                        <Badge variant="outline" className="text-xs font-mono cursor-help" title="Document expiry date">{'{{EXPIRY_DATE}}'}</Badge>
+                        <Badge variant="outline" className="text-xs font-mono cursor-help" title="Client address">{'{{CLIENT_ADDRESS}}'}</Badge>
                       </div>
+                      <Button variant="destructive" size="sm" onClick={() => removeSection(section.key)}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remove
+                      </Button>
                     </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <Textarea
-                        value={section.content}
-                        onChange={(e) => updateSection(section.key, e.target.value)}
-                        rows={8}
-                        className="font-mono text-sm resize-y"
-                        placeholder="Enter section content..."
-                      />
-                      <div className="flex justify-between items-center">
-                        <div className="flex gap-2 flex-wrap">
-                          <Badge variant="outline" className="text-xs font-mono cursor-help" title="Client company name">{'{{CLIENT_NAME}}'}</Badge>
-                          <Badge variant="outline" className="text-xs font-mono cursor-help" title="Current date">{'{{DATE}}'}</Badge>
-                          <Badge variant="outline" className="text-xs font-mono cursor-help" title="Document expiry date">{'{{EXPIRY_DATE}}'}</Badge>
-                          <Badge variant="outline" className="text-xs font-mono cursor-help" title="Client address">{'{{CLIENT_ADDRESS}}'}</Badge>
-                        </div>
-                        {section.key.startsWith('custom_') && (
-                          <Button variant="destructive" size="sm" onClick={() => removeSection(section.key)}>
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Remove
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
+          
+          {sortedSections.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No sections yet. Click "Add Section" to create one.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
