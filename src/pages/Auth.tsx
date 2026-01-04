@@ -7,8 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Lock, Mail, User } from 'lucide-react';
+import { Shield, Lock, Mail, User, Users, Briefcase } from 'lucide-react';
 import { z } from 'zod';
+import { supabase } from '@/integrations/supabase/client';
+
+type SignupRole = 'staff' | 'client';
 
 const emailSchema = z.string().email('Please enter a valid email address');
 const passwordSchema = z.string().min(8, 'Password must be at least 8 characters');
@@ -22,6 +25,7 @@ const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [signupRole, setSignupRole] = useState<SignupRole>('client');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; name?: string }>({});
 
@@ -98,10 +102,17 @@ const Auth = () => {
     if (!validateForm(true)) return;
     
     setIsSubmitting(true);
-    const { error } = await signUp(email, password, fullName);
-    setIsSubmitting(false);
+    const { error, data } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/`,
+        data: { full_name: fullName }
+      }
+    });
     
     if (error) {
+      setIsSubmitting(false);
       let message = error.message;
       if (error.message.includes('already registered')) {
         message = 'This email is already registered. Please sign in instead.';
@@ -111,12 +122,31 @@ const Auth = () => {
         title: 'Sign up failed',
         description: message
       });
-    } else {
-      toast({
-        title: 'Account created!',
-        description: 'Please wait for an administrator to assign your role.'
-      });
+      return;
     }
+
+    // Create user role after successful signup
+    if (data.user) {
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .insert({
+          user_id: data.user.id,
+          role: signupRole,
+          is_approved: false
+        });
+
+      if (roleError) {
+        console.error('Error creating user role:', roleError);
+      }
+    }
+
+    setIsSubmitting(false);
+    toast({
+      title: 'Account created!',
+      description: signupRole === 'client' 
+        ? 'Please wait for an administrator to assign your client profile.'
+        : 'Please wait for an administrator to approve your staff account.'
+    });
   };
 
   if (isLoading) {
@@ -197,6 +227,36 @@ const Auth = () => {
           <TabsContent value="signup">
             <form onSubmit={handleSignUp}>
               <CardContent className="space-y-4">
+                {/* Role Toggle */}
+                <div className="space-y-2">
+                  <Label>I am signing up as</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={signupRole === 'client' ? 'default' : 'outline'}
+                      className="w-full"
+                      onClick={() => setSignupRole('client')}
+                    >
+                      <Briefcase className="h-4 w-4 mr-2" />
+                      Client
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={signupRole === 'staff' ? 'default' : 'outline'}
+                      className="w-full"
+                      onClick={() => setSignupRole('staff')}
+                    >
+                      <Users className="h-4 w-4 mr-2" />
+                      Staff
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {signupRole === 'client' 
+                      ? 'Sign up to access your client portal and view your projects, documents, and subscriptions.'
+                      : 'Sign up as a staff member to manage clients and projects.'}
+                  </p>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">Full Name</Label>
                   <div className="relative">
@@ -248,7 +308,7 @@ const Auth = () => {
               
               <CardFooter>
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? 'Creating account...' : 'Create Account'}
+                  {isSubmitting ? 'Creating account...' : `Create ${signupRole === 'client' ? 'Client' : 'Staff'} Account`}
                 </Button>
               </CardFooter>
             </form>
