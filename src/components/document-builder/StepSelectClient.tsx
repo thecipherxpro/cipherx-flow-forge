@@ -45,24 +45,24 @@ export function StepSelectClient({ selectedClient, onSelect }: Props) {
   );
 
   if (isLoading) {
-    return <div className="text-center py-8 text-muted-foreground">Loading clients...</div>;
+    return <div className="text-center py-8 text-muted-foreground text-sm">Loading clients...</div>;
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search clients..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
+          className="pl-9 text-sm"
         />
       </div>
 
-      <div className="grid gap-3 max-h-[400px] overflow-y-auto">
+      <div className="grid gap-2 sm:gap-3 max-h-[300px] sm:max-h-[400px] overflow-y-auto">
         {filteredClients.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
+          <div className="text-center py-8 text-muted-foreground text-sm">
             No clients found. Create a client first.
           </div>
         ) : (
@@ -74,22 +74,22 @@ export function StepSelectClient({ selectedClient, onSelect }: Props) {
               }`}
               onClick={() => onSelect(client)}
             >
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Building2 className="h-5 w-5 text-primary" />
+              <CardContent className="p-3 sm:p-4 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                   </div>
-                  <div>
-                    <p className="font-medium">{client.company_name}</p>
-                    <p className="text-sm text-muted-foreground">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm sm:text-base truncate">{client.company_name}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">
                       {[client.city, client.province].filter(Boolean).join(', ') || 'No address'}
                     </p>
                   </div>
                 </div>
                 {selectedClient?.id === client.id && (
-                  <Badge className="bg-primary">
+                  <Badge className="bg-primary flex-shrink-0 text-xs">
                     <Check className="h-3 w-3 mr-1" />
-                    Selected
+                    <span className="hidden sm:inline">Selected</span>
                   </Badge>
                 )}
               </CardContent>

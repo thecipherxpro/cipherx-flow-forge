@@ -3,10 +3,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Plus, Trash2, Copy, DollarSign, Percent, Calculator } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { PricingItem } from '@/lib/templates/service-templates';
 
 interface Props {
@@ -17,13 +16,9 @@ interface Props {
   totals: { subtotal: number; discountAmount: number; total: number };
 }
 
-const TAX_RATES = {
-  hst: { label: 'HST (13%)', rate: 0.13 },
-  gst: { label: 'GST (5%)', rate: 0.05 },
-  none: { label: 'No Tax', rate: 0 },
-};
-
 export function StepPricing({ items, onChange, discount, onDiscountChange, totals }: Props) {
+  const isMobile = useIsMobile();
+
   const addItem = () => {
     const newItem: PricingItem = {
       id: Date.now().toString(),
@@ -56,68 +51,131 @@ export function StepPricing({ items, onChange, discount, onDiscountChange, total
     return new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(amount);
   };
 
-  const getUnitLabel = (unit: string) => {
-    const labels: Record<string, string> = {
-      fixed: 'Fixed',
-      hour: '/hr',
-      month: '/mo',
-      year: '/yr',
-    };
-    return labels[unit] || unit;
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Line Items */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0 pb-3 sm:pb-4">
           <div>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Calculator className="h-5 w-5" />
+            <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+              <Calculator className="h-4 w-4 sm:h-5 sm:w-5" />
               Line Items
             </CardTitle>
-            <CardDescription>Add services, products, or fees</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Add services, products, or fees</CardDescription>
           </div>
-          <Button onClick={addItem} size="sm">
+          <Button onClick={addItem} size="sm" className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Add Item
           </Button>
         </CardHeader>
         <CardContent>
           {items.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <DollarSign className="h-12 w-12 mx-auto mb-3 opacity-20" />
-              <p>No pricing items yet</p>
+            <div className="text-center py-6 sm:py-8 text-muted-foreground">
+              <DollarSign className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-2 sm:mb-3 opacity-20" />
+              <p className="text-sm">No pricing items yet</p>
               <Button variant="outline" className="mt-3" onClick={addItem}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Your First Item
               </Button>
             </div>
+          ) : isMobile ? (
+            // Mobile Card Layout
+            <div className="space-y-3">
+              {items.map((item) => (
+                <div key={item.id} className="p-3 border rounded-lg space-y-3 bg-muted/20">
+                  <div className="flex items-start justify-between gap-2">
+                    <Input
+                      value={item.description}
+                      onChange={(e) => updateItem(item.id, 'description', e.target.value)}
+                      placeholder="Description"
+                      className="flex-1 text-sm"
+                    />
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => duplicateItem(item)}>
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(item.id)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Qty</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => updateItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
+                        className="text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Unit</Label>
+                      <Select value={item.unit} onValueChange={(v) => updateItem(item.id, 'unit', v)}>
+                        <SelectTrigger className="text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fixed">Fixed</SelectItem>
+                          <SelectItem value="hour">Per Hour</SelectItem>
+                          <SelectItem value="month">Per Month</SelectItem>
+                          <SelectItem value="year">Per Year</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Price</Label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.unitPrice}
+                          onChange={(e) => updateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                          className="pl-6 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t">
+                    <span className="text-xs text-muted-foreground">Item Total</span>
+                    <span className="font-medium">{formatCurrency(item.quantity * item.unitPrice)}</span>
+                  </div>
+                </div>
+              ))}
+              <div className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
+                <span className="font-medium">Subtotal</span>
+                <span className="font-semibold">{formatCurrency(totals.subtotal)}</span>
+              </div>
+            </div>
           ) : (
+            // Desktop Table Layout
             <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="w-[35%]">Description</TableHead>
-                    <TableHead className="w-[12%]">Qty</TableHead>
-                    <TableHead className="w-[15%]">Unit</TableHead>
-                    <TableHead className="w-[18%]">Unit Price</TableHead>
-                    <TableHead className="w-[15%] text-right">Total</TableHead>
-                    <TableHead className="w-[5%]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-muted/50 text-left text-sm">
+                    <th className="p-3 font-medium w-[35%]">Description</th>
+                    <th className="p-3 font-medium w-[10%]">Qty</th>
+                    <th className="p-3 font-medium w-[15%]">Unit</th>
+                    <th className="p-3 font-medium w-[18%]">Unit Price</th>
+                    <th className="p-3 font-medium w-[15%] text-right">Total</th>
+                    <th className="p-3 w-[7%]"></th>
+                  </tr>
+                </thead>
+                <tbody>
                   {items.map((item) => (
-                    <TableRow key={item.id} className="group">
-                      <TableCell>
+                    <tr key={item.id} className="border-t group">
+                      <td className="p-2">
                         <Input
                           value={item.description}
                           onChange={(e) => updateItem(item.id, 'description', e.target.value)}
                           placeholder="Service or product description"
                           className="border-transparent hover:border-input focus:border-input"
                         />
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td className="p-2">
                         <Input
                           type="number"
                           min="1"
@@ -125,8 +183,8 @@ export function StepPricing({ items, onChange, discount, onDiscountChange, total
                           onChange={(e) => updateItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
                           className="w-16 border-transparent hover:border-input focus:border-input"
                         />
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td className="p-2">
                         <Select value={item.unit} onValueChange={(v) => updateItem(item.id, 'unit', v)}>
                           <SelectTrigger className="w-24 border-transparent hover:border-input">
                             <SelectValue />
@@ -138,8 +196,8 @@ export function StepPricing({ items, onChange, discount, onDiscountChange, total
                             <SelectItem value="year">Per Year</SelectItem>
                           </SelectContent>
                         </Select>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td className="p-2">
                         <div className="relative">
                           <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                           <Input
@@ -151,11 +209,11 @@ export function StepPricing({ items, onChange, discount, onDiscountChange, total
                             className="pl-7 w-28 border-transparent hover:border-input focus:border-input"
                           />
                         </div>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
+                      </td>
+                      <td className="p-2 text-right font-medium">
                         {formatCurrency(item.quantity * item.unitPrice)}
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td className="p-2">
                         <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => duplicateItem(item)} title="Duplicate">
                             <Copy className="h-3 w-3" />
@@ -164,18 +222,18 @@ export function StepPricing({ items, onChange, discount, onDiscountChange, total
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))}
-                </TableBody>
-                <TableFooter>
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-right font-medium">Subtotal</TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(totals.subtotal)}</TableCell>
-                    <TableCell></TableCell>
-                  </TableRow>
-                </TableFooter>
-              </Table>
+                </tbody>
+                <tfoot>
+                  <tr className="border-t bg-muted/30">
+                    <td colSpan={4} className="p-3 text-right font-medium">Subtotal</td>
+                    <td className="p-3 text-right font-semibold">{formatCurrency(totals.subtotal)}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           )}
         </CardContent>
@@ -183,21 +241,21 @@ export function StepPricing({ items, onChange, discount, onDiscountChange, total
 
       {/* Discount */}
       <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Percent className="h-5 w-5" />
+        <CardHeader className="pb-3 sm:pb-4">
+          <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+            <Percent className="h-4 w-4 sm:h-5 sm:w-5" />
             Discount
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap items-end gap-6">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-4 sm:gap-6">
             <div className="space-y-2">
-              <Label>Discount Type</Label>
+              <Label className="text-sm">Discount Type</Label>
               <Select
                 value={discount.type}
                 onValueChange={(v) => onDiscountChange({ ...discount, type: v as 'percentage' | 'fixed' })}
               >
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-full sm:w-44">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -215,7 +273,7 @@ export function StepPricing({ items, onChange, discount, onDiscountChange, total
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Value</Label>
+              <Label className="text-sm">Value</Label>
               <div className="relative">
                 {discount.type === 'fixed' && (
                   <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -227,7 +285,7 @@ export function StepPricing({ items, onChange, discount, onDiscountChange, total
                   max={discount.type === 'percentage' ? '100' : undefined}
                   value={discount.value}
                   onChange={(e) => onDiscountChange({ ...discount, value: parseFloat(e.target.value) || 0 })}
-                  className={`w-32 ${discount.type === 'fixed' ? 'pl-7' : ''}`}
+                  className={`w-full sm:w-32 ${discount.type === 'fixed' ? 'pl-7' : ''}`}
                 />
                 {discount.type === 'percentage' && (
                   <Percent className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -235,7 +293,7 @@ export function StepPricing({ items, onChange, discount, onDiscountChange, total
               </div>
             </div>
             {totals.discountAmount > 0 && (
-              <div className="text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
+              <div className="text-xs sm:text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg w-full sm:w-auto">
                 Discount Applied: <span className="font-medium text-destructive">-{formatCurrency(totals.discountAmount)}</span>
               </div>
             )}
@@ -245,22 +303,22 @@ export function StepPricing({ items, onChange, discount, onDiscountChange, total
 
       {/* Total Summary */}
       <Card className="bg-primary/5 border-primary/20">
-        <CardContent className="pt-6">
+        <CardContent className="pt-4 sm:pt-6">
           <div className="space-y-2">
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-xs sm:text-sm">
               <span className="text-muted-foreground">Subtotal</span>
               <span>{formatCurrency(totals.subtotal)}</span>
             </div>
             {totals.discountAmount > 0 && (
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-xs sm:text-sm">
                 <span className="text-muted-foreground">Discount</span>
                 <span className="text-destructive">-{formatCurrency(totals.discountAmount)}</span>
               </div>
             )}
             <Separator className="my-2" />
             <div className="flex justify-between items-center">
-              <span className="text-lg font-bold">Total</span>
-              <span className="text-2xl font-bold text-primary">{formatCurrency(totals.total)}</span>
+              <span className="text-base sm:text-lg font-bold">Total</span>
+              <span className="text-xl sm:text-2xl font-bold text-primary">{formatCurrency(totals.total)}</span>
             </div>
           </div>
         </CardContent>

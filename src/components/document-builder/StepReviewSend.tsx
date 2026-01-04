@@ -4,6 +4,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Building2, FileText, DollarSign, Users, CheckCircle, Receipt } from 'lucide-react';
 import { serviceTypeLabels, documentTypeLabels, type TemplateSection, type PricingItem } from '@/lib/templates/service-templates';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { Database } from '@/integrations/supabase/types';
 
 type DocumentType = Database['public']['Enums']['document_type'];
@@ -55,6 +56,8 @@ export function StepReviewSend({
   processContent,
   includeHst,
 }: Props) {
+  const isMobile = useIsMobile();
+  
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(amount);
   };
@@ -62,7 +65,6 @@ export function StepReviewSend({
   const hstAmount = includeHst ? totals.total * HST_RATE : 0;
   const grandTotal = totals.total + hstAmount;
 
-  // Strip HTML tags for preview
   const stripHtml = (html: string) => {
     const tmp = document.createElement('DIV');
     tmp.innerHTML = html;
@@ -70,85 +72,87 @@ export function StepReviewSend({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Stats Cards */}
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Building2 className="h-5 w-5 text-primary" />
+          <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-primary/10">
+                <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Client</p>
-                <p className="font-medium">{client?.company_name || 'Not selected'}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground">Client</p>
+                <p className="font-medium text-xs sm:text-base truncate">{client?.company_name || 'Not selected'}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <FileText className="h-5 w-5 text-primary" />
+          <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-primary/10">
+                <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Document</p>
-                <p className="font-medium">{documentType ? documentTypeLabels[documentType] : 'Not selected'}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <DollarSign className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Value</p>
-                <p className="font-medium">{formatCurrency(grandTotal)}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground">Document</p>
+                <p className="font-medium text-xs sm:text-base truncate">{documentType ? documentTypeLabels[documentType] : 'Not selected'}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Users className="h-5 w-5 text-primary" />
+          <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-primary/10">
+                <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Signers</p>
-                <p className="font-medium">{signers.length} people</p>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground">Total Value</p>
+                <p className="font-medium text-xs sm:text-base">{formatCurrency(grandTotal)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4 sm:pt-6 p-3 sm:p-6">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-primary/10">
+                <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground">Signers</p>
+                <p className="font-medium text-xs sm:text-base">{signers.length} people</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* Main Content */}
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle>Document Preview</CardTitle>
-            <CardDescription>{title}</CardDescription>
+          <CardHeader className="pb-3 sm:pb-4">
+            <CardTitle className="text-base sm:text-lg">Document Preview</CardTitle>
+            <CardDescription className="text-xs sm:text-sm truncate">{title}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[400px] pr-4">
-              <div className="space-y-6">
+            <ScrollArea className="h-[250px] sm:h-[400px] pr-4">
+              <div className="space-y-4 sm:space-y-6">
                 {sections.map((section, idx) => (
                   <div key={section.key}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs text-muted-foreground">{idx + 1}.</span>
-                      <h4 className="font-semibold">{section.title}</h4>
+                    <div className="flex items-center gap-2 mb-1 sm:mb-2">
+                      <span className="text-[10px] sm:text-xs text-muted-foreground">{idx + 1}.</span>
+                      <h4 className="font-semibold text-sm sm:text-base">{section.title}</h4>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {stripHtml(processContent(section.content)).substring(0, 300)}
-                      {section.content.length > 300 && '...'}
+                    <div className="text-xs sm:text-sm text-muted-foreground">
+                      {stripHtml(processContent(section.content)).substring(0, isMobile ? 150 : 300)}
+                      {section.content.length > (isMobile ? 150 : 300) && '...'}
                     </div>
-                    <Separator className="mt-4" />
+                    <Separator className="mt-3 sm:mt-4" />
                   </div>
                 ))}
               </div>
@@ -156,41 +160,41 @@ export function StepReviewSend({
           </CardContent>
         </Card>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Receipt className="h-5 w-5" />
+            <CardHeader className="pb-3 sm:pb-4">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Receipt className="h-4 w-4 sm:h-5 sm:w-5" />
                 Pricing Summary
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 {pricingItems.map((item) => (
-                  <div key={item.id} className="flex justify-between text-sm">
+                  <div key={item.id} className="flex justify-between text-xs sm:text-sm">
                     <span className="truncate flex-1 mr-2">{item.description}</span>
-                    <span>{formatCurrency(item.quantity * item.unitPrice)}</span>
+                    <span className="flex-shrink-0">{formatCurrency(item.quantity * item.unitPrice)}</span>
                   </div>
                 ))}
                 <Separator className="my-2" />
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs sm:text-sm">
                   <span>Subtotal</span>
                   <span>{formatCurrency(totals.subtotal)}</span>
                 </div>
                 {discount.value > 0 && (
-                  <div className="flex justify-between text-sm text-green-600">
+                  <div className="flex justify-between text-xs sm:text-sm text-green-600">
                     <span>Discount ({discount.type === 'percentage' ? `${discount.value}%` : 'Fixed'})</span>
                     <span>-{formatCurrency(totals.discountAmount)}</span>
                   </div>
                 )}
                 {includeHst && (
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-xs sm:text-sm">
                     <span>HST (13%)</span>
                     <span>{formatCurrency(hstAmount)}</span>
                   </div>
                 )}
                 <Separator className="my-2" />
-                <div className="flex justify-between font-bold text-lg">
+                <div className="flex justify-between font-bold text-sm sm:text-lg">
                   <span>Grand Total</span>
                   <span className="text-primary">{formatCurrency(grandTotal)}</span>
                 </div>
@@ -199,28 +203,28 @@ export function StepReviewSend({
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Signers</CardTitle>
+            <CardHeader className="pb-3 sm:pb-4">
+              <CardTitle className="text-base sm:text-lg">Signers</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {signers.map((signer, idx) => (
-                  <div key={signer.id} className="flex items-center gap-3">
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                  <div key={signer.id} className="flex items-center gap-2 sm:gap-3">
+                    <div className={`h-6 w-6 sm:h-8 sm:w-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium flex-shrink-0 ${
                       signer.type === 'cipherx' ? 'bg-primary/10 text-primary' : 'bg-blue-100 text-blue-600'
                     }`}>
                       {idx + 1}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{signer.name || 'Name pending'}</p>
-                      <p className="text-xs text-muted-foreground truncate">{signer.email || 'Email pending'}</p>
+                      <p className="text-xs sm:text-sm font-medium truncate">{signer.name || 'Name pending'}</p>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{signer.email || 'Email pending'}</p>
                     </div>
-                    <div className="text-right">
-                      <Badge variant={signer.type === 'cipherx' ? 'default' : 'secondary'}>
+                    <div className="text-right flex-shrink-0">
+                      <Badge variant={signer.type === 'cipherx' ? 'default' : 'secondary'} className="text-[10px] sm:text-xs">
                         {signer.type === 'cipherx' ? 'CipherX' : 'Client'}
                       </Badge>
                       {signer.position && (
-                        <p className="text-xs text-muted-foreground mt-1">{signer.position}</p>
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">{signer.position}</p>
                       )}
                     </div>
                   </div>
@@ -230,12 +234,12 @@ export function StepReviewSend({
           </Card>
 
           <Card className="border-primary bg-primary/5">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <CheckCircle className="h-6 w-6 text-primary" />
+            <CardContent className="pt-4 sm:pt-6">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-primary flex-shrink-0" />
                 <div>
-                  <p className="font-medium">Ready to Send</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="font-medium text-sm sm:text-base">Ready to Send</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     Document will be locked after sending
                   </p>
                 </div>
