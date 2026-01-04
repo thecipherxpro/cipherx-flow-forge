@@ -24,6 +24,7 @@ import {
   AlertCircle,
   Sparkles
 } from 'lucide-react';
+import RichTextRenderer from '@/components/RichTextRenderer';
 import { format } from 'date-fns';
 import { generateExportPdf } from '@/lib/pdf';
 import type { 
@@ -445,15 +446,9 @@ const PortalDocumentView = () => {
                 </div>
               </div>
               <CardContent className="p-6 sm:p-8">
-                <div 
-                  className="prose prose-lg dark:prose-invert max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-p:leading-relaxed prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground"
-                  dangerouslySetInnerHTML={{ 
-                    __html: sections[activeSection]?.content
-                      .replace(/\n\n/g, '</p><p class="mt-4">')
-                      .replace(/\n/g, '<br/>')
-                      .replace(/^/, '<p>')
-                      .replace(/$/, '</p>') 
-                  }}
+                <RichTextRenderer 
+                  content={sections[activeSection]?.content || ''} 
+                  className="text-base"
                 />
               </CardContent>
               
