@@ -280,6 +280,9 @@ const DocumentView = () => {
       subtotal: pricingData?.subtotal || 0,
       discountPercent: pricingData?.discountPercent || 0,
       discountAmount: pricingData?.discountAmount || 0,
+      includeHst: pricingData?.includeHst || false,
+      hstRate: pricingData?.hstRate || 13,
+      hstAmount: pricingData?.hstAmount || 0,
       total: pricingData?.total || 0
     };
 
@@ -659,10 +662,7 @@ const DocumentView = () => {
                           {index + 1}
                         </div>
                         <div>
-                          <p className="font-medium">{item.name || item.description}</p>
-                          {item.description && item.name && (
-                            <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
-                          )}
+                          <p className="font-medium">{item.description || item.name || 'Unnamed Item'}</p>
                           <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
                             <span>{formatCurrency(item.unitPrice)} × {item.quantity}</span>
                           </div>
@@ -673,12 +673,27 @@ const DocumentView = () => {
                   ))}
                 </div>
                 <Separator />
-                <div className="p-4 sm:p-6 bg-primary/5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Amount</p>
-                      <p className="text-2xl font-bold text-primary">{formatCurrency(pricingData.total || 0)}</p>
+                <div className="p-4 sm:p-6 bg-primary/5 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="font-medium">{formatCurrency(pricingData.subtotal || 0)}</span>
+                  </div>
+                  {pricingData.discountAmount && pricingData.discountAmount > 0 && (
+                    <div className="flex items-center justify-between text-sm text-green-600">
+                      <span>Discount ({pricingData.discountPercent || 0}%)</span>
+                      <span>-{formatCurrency(pricingData.discountAmount)}</span>
                     </div>
+                  )}
+                  {pricingData.includeHst && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">HST ({pricingData.hstRate || 13}%)</span>
+                      <span className="font-medium">{formatCurrency(pricingData.hstAmount || 0)}</span>
+                    </div>
+                  )}
+                  <Separator className="my-2" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Total Amount</span>
+                    <span className="text-2xl font-bold text-primary">{formatCurrency(pricingData.total || 0)}</span>
                   </div>
                 </div>
               </CardContent>
