@@ -40,14 +40,9 @@ import {
   Code,
   Link as LinkIcon,
   Table as TableIcon,
-  Heading1,
-  Heading2,
-  Heading3,
   Undo,
   Redo,
   Palette,
-  Indent,
-  Outdent,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -102,15 +97,15 @@ export function RichTextEditor({
       attributes: {
         class: cn(
           'prose prose-sm sm:prose-base max-w-none focus:outline-none',
-          'min-h-[200px] p-4',
-          '[&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4',
-          '[&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mb-3',
-          '[&_h3]:text-lg [&_h3]:font-medium [&_h3]:mb-2',
-          '[&_ul]:list-disc [&_ul]:ml-6 [&_ul]:mb-4',
-          '[&_ol]:list-decimal [&_ol]:ml-6 [&_ol]:mb-4',
+          'min-h-[200px] p-3 sm:p-4',
+          '[&_h1]:text-xl sm:[&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4',
+          '[&_h2]:text-lg sm:[&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mb-3',
+          '[&_h3]:text-base sm:[&_h3]:text-lg [&_h3]:font-medium [&_h3]:mb-2',
+          '[&_ul]:list-disc [&_ul]:ml-4 sm:[&_ul]:ml-6 [&_ul]:mb-4',
+          '[&_ol]:list-decimal [&_ol]:ml-4 sm:[&_ol]:ml-6 [&_ol]:mb-4',
           '[&_li]:mb-1',
           '[&_blockquote]:border-l-4 [&_blockquote]:border-primary/30 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground',
-          '[&_table]:w-full [&_table]:border-collapse',
+          '[&_table]:w-full [&_table]:border-collapse [&_table]:text-sm',
           '[&_th]:border [&_th]:border-border [&_th]:p-2 [&_th]:bg-muted [&_th]:font-semibold',
           '[&_td]:border [&_td]:border-border [&_td]:p-2',
           '[&_a]:text-primary [&_a]:underline',
@@ -123,7 +118,6 @@ export function RichTextEditor({
     },
   });
 
-  // Sync external value changes
   useEffect(() => {
     if (editor && value !== editor.getHTML()) {
       editor.commands.setContent(value);
@@ -147,29 +141,29 @@ export function RichTextEditor({
 
   return (
     <div className={cn('border rounded-lg overflow-hidden bg-background', className)}>
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-0.5 p-2 border-b bg-muted/30">
+      {/* Toolbar - Responsive */}
+      <div className="flex flex-wrap items-center gap-0.5 p-1 sm:p-2 border-b bg-muted/30 overflow-x-auto">
         {/* Undo/Redo */}
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 w-8 p-0"
+          className="h-7 w-7 sm:h-8 sm:w-8 p-0 flex-shrink-0"
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!editor.can().undo()}
         >
-          <Undo className="h-4 w-4" />
+          <Undo className="h-3 w-3 sm:h-4 sm:w-4" />
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 w-8 p-0"
+          className="h-7 w-7 sm:h-8 sm:w-8 p-0 flex-shrink-0"
           onClick={() => editor.chain().focus().redo().run()}
           disabled={!editor.can().redo()}
         >
-          <Redo className="h-4 w-4" />
+          <Redo className="h-3 w-3 sm:h-4 sm:w-4" />
         </Button>
 
-        <Separator orientation="vertical" className="mx-1 h-6" />
+        <Separator orientation="vertical" className="mx-0.5 sm:mx-1 h-5 sm:h-6" />
 
         {/* Heading Select */}
         <Select
@@ -191,7 +185,7 @@ export function RichTextEditor({
             }
           }}
         >
-          <SelectTrigger className="h-8 w-[110px] text-xs">
+          <SelectTrigger className="h-7 sm:h-8 w-[80px] sm:w-[100px] text-[10px] sm:text-xs flex-shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -202,28 +196,28 @@ export function RichTextEditor({
           </SelectContent>
         </Select>
 
-        <Separator orientation="vertical" className="mx-1 h-6" />
+        <Separator orientation="vertical" className="mx-0.5 sm:mx-1 h-5 sm:h-6" />
 
         {/* Text Formatting */}
         <Toggle
           size="sm"
-          className="h-8 w-8 p-0"
+          className="h-7 w-7 sm:h-8 sm:w-8 p-0 flex-shrink-0"
           pressed={editor.isActive('bold')}
           onPressedChange={() => editor.chain().focus().toggleBold().run()}
         >
-          <Bold className="h-4 w-4" />
+          <Bold className="h-3 w-3 sm:h-4 sm:w-4" />
         </Toggle>
         <Toggle
           size="sm"
-          className="h-8 w-8 p-0"
+          className="h-7 w-7 sm:h-8 sm:w-8 p-0 flex-shrink-0"
           pressed={editor.isActive('italic')}
           onPressedChange={() => editor.chain().focus().toggleItalic().run()}
         >
-          <Italic className="h-4 w-4" />
+          <Italic className="h-3 w-3 sm:h-4 sm:w-4" />
         </Toggle>
         <Toggle
           size="sm"
-          className="h-8 w-8 p-0"
+          className="h-7 w-7 sm:h-8 sm:w-8 p-0 flex-shrink-0 hidden sm:flex"
           pressed={editor.isActive('underline')}
           onPressedChange={() => editor.chain().focus().toggleUnderline().run()}
         >
@@ -231,26 +225,18 @@ export function RichTextEditor({
         </Toggle>
         <Toggle
           size="sm"
-          className="h-8 w-8 p-0"
+          className="h-7 w-7 sm:h-8 sm:w-8 p-0 flex-shrink-0 hidden sm:flex"
           pressed={editor.isActive('strike')}
           onPressedChange={() => editor.chain().focus().toggleStrike().run()}
         >
           <Strikethrough className="h-4 w-4" />
         </Toggle>
-        <Toggle
-          size="sm"
-          className="h-8 w-8 p-0"
-          pressed={editor.isActive('code')}
-          onPressedChange={() => editor.chain().focus().toggleCode().run()}
-        >
-          <Code className="h-4 w-4" />
-        </Toggle>
 
         {/* Color Picker */}
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <Palette className="h-4 w-4" />
+            <Button variant="ghost" size="sm" className="h-7 w-7 sm:h-8 sm:w-8 p-0 flex-shrink-0">
+              <Palette className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-2">
@@ -267,89 +253,76 @@ export function RichTextEditor({
           </PopoverContent>
         </Popover>
 
-        <Separator orientation="vertical" className="mx-1 h-6" />
+        <Separator orientation="vertical" className="mx-0.5 sm:mx-1 h-5 sm:h-6 hidden sm:block" />
 
-        {/* Alignment */}
-        <Toggle
-          size="sm"
-          className="h-8 w-8 p-0"
-          pressed={editor.isActive({ textAlign: 'left' })}
-          onPressedChange={() => editor.chain().focus().setTextAlign('left').run()}
-        >
-          <AlignLeft className="h-4 w-4" />
-        </Toggle>
-        <Toggle
-          size="sm"
-          className="h-8 w-8 p-0"
-          pressed={editor.isActive({ textAlign: 'center' })}
-          onPressedChange={() => editor.chain().focus().setTextAlign('center').run()}
-        >
-          <AlignCenter className="h-4 w-4" />
-        </Toggle>
-        <Toggle
-          size="sm"
-          className="h-8 w-8 p-0"
-          pressed={editor.isActive({ textAlign: 'right' })}
-          onPressedChange={() => editor.chain().focus().setTextAlign('right').run()}
-        >
-          <AlignRight className="h-4 w-4" />
-        </Toggle>
-        <Toggle
-          size="sm"
-          className="h-8 w-8 p-0"
-          pressed={editor.isActive({ textAlign: 'justify' })}
-          onPressedChange={() => editor.chain().focus().setTextAlign('justify').run()}
-        >
-          <AlignJustify className="h-4 w-4" />
-        </Toggle>
+        {/* Alignment - Hidden on mobile */}
+        <div className="hidden sm:flex gap-0.5">
+          <Toggle
+            size="sm"
+            className="h-8 w-8 p-0"
+            pressed={editor.isActive({ textAlign: 'left' })}
+            onPressedChange={() => editor.chain().focus().setTextAlign('left').run()}
+          >
+            <AlignLeft className="h-4 w-4" />
+          </Toggle>
+          <Toggle
+            size="sm"
+            className="h-8 w-8 p-0"
+            pressed={editor.isActive({ textAlign: 'center' })}
+            onPressedChange={() => editor.chain().focus().setTextAlign('center').run()}
+          >
+            <AlignCenter className="h-4 w-4" />
+          </Toggle>
+          <Toggle
+            size="sm"
+            className="h-8 w-8 p-0"
+            pressed={editor.isActive({ textAlign: 'right' })}
+            onPressedChange={() => editor.chain().focus().setTextAlign('right').run()}
+          >
+            <AlignRight className="h-4 w-4" />
+          </Toggle>
+        </div>
 
-        <Separator orientation="vertical" className="mx-1 h-6" />
+        <Separator orientation="vertical" className="mx-0.5 sm:mx-1 h-5 sm:h-6" />
 
         {/* Lists */}
         <Toggle
           size="sm"
-          className="h-8 w-8 p-0"
+          className="h-7 w-7 sm:h-8 sm:w-8 p-0 flex-shrink-0"
           pressed={editor.isActive('bulletList')}
           onPressedChange={() => editor.chain().focus().toggleBulletList().run()}
         >
-          <List className="h-4 w-4" />
+          <List className="h-3 w-3 sm:h-4 sm:w-4" />
         </Toggle>
         <Toggle
           size="sm"
-          className="h-8 w-8 p-0"
+          className="h-7 w-7 sm:h-8 sm:w-8 p-0 flex-shrink-0"
           pressed={editor.isActive('orderedList')}
           onPressedChange={() => editor.chain().focus().toggleOrderedList().run()}
         >
-          <ListOrdered className="h-4 w-4" />
-        </Toggle>
-        <Toggle
-          size="sm"
-          className="h-8 w-8 p-0"
-          pressed={editor.isActive('blockquote')}
-          onPressedChange={() => editor.chain().focus().toggleBlockquote().run()}
-        >
-          <Quote className="h-4 w-4" />
+          <ListOrdered className="h-3 w-3 sm:h-4 sm:w-4" />
         </Toggle>
 
-        <Separator orientation="vertical" className="mx-1 h-6" />
-
-        {/* Link & Table */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 p-0"
-          onClick={addLink}
-        >
-          <LinkIcon className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 p-0"
-          onClick={insertTable}
-        >
-          <TableIcon className="h-4 w-4" />
-        </Button>
+        {/* Link & Table - Hidden on very small screens */}
+        <div className="hidden sm:flex gap-0.5">
+          <Separator orientation="vertical" className="mx-1 h-6" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={addLink}
+          >
+            <LinkIcon className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={insertTable}
+          >
+            <TableIcon className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Editor Content */}

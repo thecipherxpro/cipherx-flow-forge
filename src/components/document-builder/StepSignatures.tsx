@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Trash2, CalendarIcon, Building2, User, Mail, Briefcase, Loader2 } from 'lucide-react';
+import { Trash2, CalendarIcon, Building2, User, Mail, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -68,7 +68,6 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
     },
   });
 
-  // Auto-add client signer when client is selected
   useEffect(() => {
     if (client && client.contact_name && client.contact_email) {
       const existingClientSigner = signers.find(s => s.type === 'client');
@@ -90,7 +89,6 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
     const signer = companySigners?.find(s => s.id === signerId);
     if (!signer) return;
 
-    // Check if already added
     if (signers.some(s => s.id === signerId)) return;
 
     const newSigner: Signer = {
@@ -120,28 +118,28 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
   ].filter(Boolean).join(', ') : '';
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-2">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
         {/* CipherX Signers */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">CipherX Signers</CardTitle>
-            <CardDescription>Select authorized company signers</CardDescription>
+          <CardHeader className="pb-3 sm:pb-4">
+            <CardTitle className="text-base sm:text-lg">CipherX Signers</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Select authorized company signers</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 sm:space-y-4">
             {cipherxSigners.map((signer) => (
-              <div key={signer.id} className="flex items-start gap-3 p-3 border rounded-lg bg-muted/30">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="h-5 w-5 text-primary" />
+              <div key={signer.id} className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 border rounded-lg bg-muted/30">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <User className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium">{signer.name}</p>
-                  <p className="text-sm text-muted-foreground">{signer.email}</p>
+                  <p className="font-medium text-sm sm:text-base truncate">{signer.name}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">{signer.email}</p>
                   {signer.position && (
-                    <Badge variant="secondary" className="mt-1 text-xs">{signer.position}</Badge>
+                    <Badge variant="secondary" className="mt-1 text-[10px] sm:text-xs">{signer.position}</Badge>
                   )}
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => removeSigner(signer.id)}>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0" onClick={() => removeSigner(signer.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -153,7 +151,7 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
               </div>
             ) : companySigners && companySigners.length > 0 ? (
               <Select onValueChange={addCipherXSigner}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full text-sm">
                   <SelectValue placeholder="Add CipherX Signer..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -162,15 +160,15 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
                     .map((signer) => (
                       <SelectItem key={signer.id} value={signer.id}>
                         <div className="flex items-center gap-2">
-                          <span>{signer.full_name}</span>
-                          <span className="text-muted-foreground">- {signer.position}</span>
+                          <span className="truncate">{signer.full_name}</span>
+                          <span className="text-muted-foreground text-xs">- {signer.position}</span>
                         </div>
                       </SelectItem>
                     ))}
                 </SelectContent>
               </Select>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">
+              <p className="text-xs sm:text-sm text-muted-foreground text-center py-4">
                 No company signers available. Add signers in Settings → Signers.
               </p>
             )}
@@ -179,42 +177,42 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
 
         {/* Client Signer */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Client Signer</CardTitle>
-            <CardDescription>
+          <CardHeader className="pb-3 sm:pb-4">
+            <CardTitle className="text-base sm:text-lg">Client Signer</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
               Auto-populated from {client?.company_name || 'selected client'}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 sm:space-y-4">
             {client ? (
-              <div className="space-y-4">
-                <div className="p-4 border rounded-lg bg-muted/30">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                      <Building2 className="h-5 w-5 text-blue-600" />
+              <div className="space-y-3 sm:space-y-4">
+                <div className="p-3 sm:p-4 border rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                      <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                     </div>
-                    <div>
-                      <p className="font-semibold">{client.company_name}</p>
-                      <Badge variant="outline" className="text-xs">Client</Badge>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm sm:text-base truncate">{client.company_name}</p>
+                      <Badge variant="outline" className="text-[10px] sm:text-xs">Client</Badge>
                     </div>
                   </div>
                   
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
                     {client.contact_name && (
                       <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span>{client.contact_name}</span>
+                        <User className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate">{client.contact_name}</span>
                       </div>
                     )}
                     {client.contact_email && (
                       <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span>{client.contact_email}</span>
+                        <Mail className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate">{client.contact_email}</span>
                       </div>
                     )}
                     {clientAddress && (
                       <div className="flex items-start gap-2">
-                        <Building2 className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                         <span className="text-muted-foreground">{clientAddress}</span>
                       </div>
                     )}
@@ -222,16 +220,16 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
                 </div>
 
                 {!client.contact_name || !client.contact_email ? (
-                  <p className="text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg">
+                  <p className="text-xs sm:text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 sm:p-3 rounded-lg">
                     ⚠️ Client contact information is incomplete. Please update the client record.
                   </p>
                 ) : null}
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Building2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p>No client selected</p>
-                <p className="text-sm">Go back to Step 1 to select a client</p>
+              <div className="text-center py-6 sm:py-8 text-muted-foreground">
+                <Building2 className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-2 sm:mb-3 opacity-30" />
+                <p className="text-sm">No client selected</p>
+                <p className="text-xs sm:text-sm">Go back to Step 1 to select a client</p>
               </div>
             )}
           </CardContent>
@@ -239,17 +237,17 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Document Expiration</CardTitle>
-          <CardDescription>Set when this document expires if not signed</CardDescription>
+        <CardHeader className="pb-3 sm:pb-4">
+          <CardTitle className="text-base sm:text-lg">Document Expiration</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">Set when this document expires if not signed</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className={cn('w-[280px] justify-start text-left font-normal', !expiresAt && 'text-muted-foreground')}
+                  className={cn('w-full sm:w-[280px] justify-start text-left font-normal text-sm', !expiresAt && 'text-muted-foreground')}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {expiresAt ? format(expiresAt, 'PPP') : 'Select expiration date'}
@@ -266,7 +264,7 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
               </PopoverContent>
             </Popover>
             {expiresAt && (
-              <Button variant="ghost" onClick={() => onExpiresAtChange(null)}>
+              <Button variant="ghost" onClick={() => onExpiresAtChange(null)} className="w-full sm:w-auto">
                 Clear
               </Button>
             )}
