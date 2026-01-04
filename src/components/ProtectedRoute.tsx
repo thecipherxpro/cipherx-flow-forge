@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth, AppRole } from '@/contexts/AuthContext';
-import { Shield } from 'lucide-react';
+import cipherxLogo from '@/assets/cipherx-logo.png';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -15,7 +15,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse flex flex-col items-center gap-4">
-          <Shield className="h-12 w-12 text-primary" />
+          <img src={cipherxLogo} alt="CipherX Logo" className="h-12 w-12 object-contain" />
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>

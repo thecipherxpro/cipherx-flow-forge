@@ -14,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Shield,
   LayoutDashboard,
   FolderKanban,
   FileText,
@@ -26,6 +25,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import cipherxLogo from '@/assets/cipherx-logo.png';
 
 const sidebarLinks = [
   { to: '/portal', icon: LayoutDashboard, label: 'Dashboard', end: true },
@@ -61,7 +61,7 @@ const ClientLayout = () => {
               <Menu className="h-5 w-5" />
             </Button>
             <div className="flex items-center gap-2">
-              <Shield className="h-6 w-6 text-primary" />
+              <img src={cipherxLogo} alt="CipherX Logo" className="h-6 w-6 object-contain" />
               <span className="font-semibold">CipherX Portal</span>
             </div>
           </div>
@@ -102,7 +102,7 @@ const ClientLayout = () => {
         )}>
           <div className="flex h-14 items-center justify-between px-4 border-b">
             <div className="flex items-center gap-2">
-              <Shield className="h-6 w-6 text-sidebar-primary" />
+              <img src={cipherxLogo} alt="CipherX Logo" className="h-6 w-6 object-contain" />
               <span className="font-semibold text-sidebar-foreground">Client Portal</span>
             </div>
             <Button 

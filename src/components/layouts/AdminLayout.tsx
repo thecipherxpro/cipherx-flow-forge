@@ -14,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Shield,
   LayoutDashboard,
   Users,
   Building2,
@@ -29,6 +28,7 @@ import {
   UserCog,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import cipherxLogo from '@/assets/cipherx-logo.png';
 
 const sidebarLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
@@ -66,7 +66,7 @@ const AdminLayout = () => {
               <Menu className="h-5 w-5" />
             </Button>
             <div className="flex items-center gap-1.5">
-              <Shield className="h-5 w-5 text-primary" />
+              <img src={cipherxLogo} alt="CipherX Logo" className="h-5 w-5 object-contain" />
               <span className="font-semibold text-sm">CipherX</span>
             </div>
           </div>
@@ -107,7 +107,7 @@ const AdminLayout = () => {
         )}>
           <div className="flex h-14 items-center justify-between px-4 border-b">
             <div className="flex items-center gap-2">
-              <Shield className="h-6 w-6 text-sidebar-primary" />
+              <img src={cipherxLogo} alt="CipherX Logo" className="h-6 w-6 object-contain" />
               <span className="font-semibold text-sidebar-foreground">CipherX Admin</span>
             </div>
             <Button 

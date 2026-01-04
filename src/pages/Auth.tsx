@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Lock, Mail, User, Users, Briefcase } from 'lucide-react';
+import { Lock, Mail, User, Users, Briefcase } from 'lucide-react';
+import cipherxLogo from '@/assets/cipherx-logo.png';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -153,7 +154,7 @@ const Auth = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse flex flex-col items-center gap-4">
-          <Shield className="h-12 w-12 text-primary" />
+          <img src={cipherxLogo} alt="CipherX Logo" className="h-12 w-12 object-contain" />
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
@@ -166,7 +167,7 @@ const Auth = () => {
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="flex items-center gap-2">
-              <Shield className="h-10 w-10 text-primary" />
+              <img src={cipherxLogo} alt="CipherX Logo" className="h-10 w-10 object-contain" />
               <span className="text-2xl font-bold">CipherX Solutions</span>
             </div>
           </div>
