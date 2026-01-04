@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, FileText, Bell, Shield } from 'lucide-react';
+import { Building2, FileText, Bell, Shield, PenTool } from 'lucide-react';
 import CompanySettings from '@/components/settings/CompanySettings';
 import TemplateManager from '@/components/settings/TemplateManager';
+import SignersManager from '@/components/settings/SignersManager';
 
 const AdminSettings = () => {
   const [activeTab, setActiveTab] = useState('company');
@@ -17,7 +18,7 @@ const AdminSettings = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-        <TabsList className="w-full grid grid-cols-4 h-auto p-1">
+        <TabsList className="w-full grid grid-cols-5 h-auto p-1">
           <TabsTrigger value="company" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-1 sm:px-3">
             <Building2 className="h-4 w-4" />
             <span className="text-[10px] sm:text-sm">Company</span>
@@ -25,6 +26,10 @@ const AdminSettings = () => {
           <TabsTrigger value="templates" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-1 sm:px-3">
             <FileText className="h-4 w-4" />
             <span className="text-[10px] sm:text-sm">Templates</span>
+          </TabsTrigger>
+          <TabsTrigger value="signers" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-1 sm:px-3">
+            <PenTool className="h-4 w-4" />
+            <span className="text-[10px] sm:text-sm">Signers</span>
           </TabsTrigger>
           <TabsTrigger value="notifications" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-1 sm:px-3">
             <Bell className="h-4 w-4" />
@@ -42,6 +47,10 @@ const AdminSettings = () => {
 
         <TabsContent value="templates">
           <TemplateManager />
+        </TabsContent>
+
+        <TabsContent value="signers">
+          <SignersManager />
         </TabsContent>
 
         <TabsContent value="notifications">

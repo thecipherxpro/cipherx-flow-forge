@@ -27,10 +27,12 @@ type ServiceType = Database['public']['Enums']['service_type'];
 interface Client {
   id: string;
   company_name: string;
-  address_line1: string | null;
-  city: string | null;
-  province: string | null;
-  postal_code: string | null;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  address_line1?: string | null;
+  city?: string | null;
+  province?: string | null;
+  postal_code?: string | null;
 }
 
 interface Signer {
@@ -38,7 +40,9 @@ interface Signer {
   name: string;
   email: string;
   role: string;
+  position?: string;
   isRequired: boolean;
+  type: 'cipherx' | 'client';
 }
 
 const STEPS = [
@@ -47,7 +51,7 @@ const STEPS = [
   { id: 3, name: 'Load Template', description: 'Select document type' },
   { id: 4, name: 'Edit Sections', description: 'Customize content' },
   { id: 5, name: 'Pricing', description: 'Set pricing & discounts' },
-  { id: 6, name: 'Compliance', description: 'Confirm compliance' },
+  { id: 6, name: 'Compliance', description: 'Select compliance' },
   { id: 7, name: 'Signatures', description: 'Setup signers' },
   { id: 8, name: 'Review & Send', description: 'Preview and send' },
 ];
@@ -68,7 +72,8 @@ const DocumentBuilder = () => {
   const [sections, setSections] = useState<TemplateSection[]>([]);
   const [pricingItems, setPricingItems] = useState<PricingItem[]>([]);
   const [discount, setDiscount] = useState({ type: 'percentage' as 'percentage' | 'fixed', value: 0 });
-  const [complianceConfirmed, setComplianceConfirmed] = useState(false);
+  const [includeHst, setIncludeHst] = useState(false);
+  const [selectedCompliances, setSelectedCompliances] = useState<string[]>([]);
   const [signers, setSigners] = useState<Signer[]>([]);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
 
@@ -117,7 +122,7 @@ const DocumentBuilder = () => {
       case 3: return !!documentType;
       case 4: return sections.length > 0;
       case 5: return pricingItems.length > 0;
-      case 6: return complianceConfirmed;
+      case 6: return selectedCompliances.length > 0;
       case 7: return signers.length > 0;
       case 8: return true;
       default: return false;
@@ -145,6 +150,7 @@ const DocumentBuilder = () => {
     setIsSaving(true);
     try {
       const { subtotal, discountAmount, total } = calculateTotal();
+      const hstAmount = includeHst ? total * 0.13 : 0;
       
       const processedSections = sections.map(s => ({
         ...s,
@@ -157,9 +163,18 @@ const DocumentBuilder = () => {
         document_type: documentType,
         service_type: serviceType,
         status: 'draft' as const,
-        content: JSON.parse(JSON.stringify({ sections: processedSections })),
-        pricing_data: JSON.parse(JSON.stringify({ items: pricingItems, discount, subtotal, discountAmount, total })),
-        compliance_confirmed: complianceConfirmed,
+        content: JSON.parse(JSON.stringify({ sections: processedSections, compliances: selectedCompliances })),
+        pricing_data: JSON.parse(JSON.stringify({ 
+          items: pricingItems, 
+          discount, 
+          subtotal, 
+          discountAmount, 
+          total, 
+          includeHst, 
+          hstAmount,
+          grandTotal: total + hstAmount
+        })),
+        compliance_confirmed: selectedCompliances.length > 0,
         expires_at: expiresAt?.toISOString(),
         created_by: user?.id,
       }]).select().single();
@@ -198,7 +213,7 @@ const DocumentBuilder = () => {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <StepSelectClient selectedClient={selectedClient} onSelect={setSelectedClient} />;
+        return <StepSelectClient selectedClient={selectedClient as any} onSelect={setSelectedClient as any} />;
       case 2:
         return <StepSelectService serviceType={serviceType} onSelect={setServiceType} />;
       case 3:
@@ -208,11 +223,11 @@ const DocumentBuilder = () => {
       case 5:
         return <StepPricing items={pricingItems} onChange={setPricingItems} discount={discount} onDiscountChange={setDiscount} totals={calculateTotal()} />;
       case 6:
-        return <StepCompliance confirmed={complianceConfirmed} onConfirm={setComplianceConfirmed} serviceType={serviceType} />;
+        return <StepCompliance selectedCompliances={selectedCompliances} onSelectedChange={setSelectedCompliances} serviceType={serviceType} />;
       case 7:
         return <StepSignatures signers={signers} onChange={setSigners} client={selectedClient} expiresAt={expiresAt} onExpiresAtChange={setExpiresAt} />;
       case 8:
-        return <StepReviewSend client={selectedClient} documentType={documentType} serviceType={serviceType} title={title} sections={sections} pricingItems={pricingItems} discount={discount} totals={calculateTotal()} signers={signers} processContent={processContent} />;
+        return <StepReviewSend client={selectedClient} documentType={documentType} serviceType={serviceType} title={title} sections={sections} pricingItems={pricingItems} discount={discount} totals={calculateTotal()} signers={signers} processContent={processContent} includeHst={includeHst} />;
       default:
         return null;
     }

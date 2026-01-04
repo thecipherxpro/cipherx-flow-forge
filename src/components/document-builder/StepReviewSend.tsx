@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Building2, FileText, DollarSign, Users, CheckCircle } from 'lucide-react';
+import { Building2, FileText, DollarSign, Users, CheckCircle, Receipt } from 'lucide-react';
 import { serviceTypeLabels, documentTypeLabels, type TemplateSection, type PricingItem } from '@/lib/templates/service-templates';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -14,12 +14,16 @@ interface Signer {
   name: string;
   email: string;
   role: string;
+  position?: string;
   isRequired: boolean;
+  type: 'cipherx' | 'client';
 }
 
 interface Client {
   id: string;
   company_name: string;
+  contact_name?: string | null;
+  contact_email?: string | null;
 }
 
 interface Props {
@@ -33,7 +37,10 @@ interface Props {
   totals: { subtotal: number; discountAmount: number; total: number };
   signers: Signer[];
   processContent: (content: string) => string;
+  includeHst: boolean;
 }
+
+const HST_RATE = 0.13;
 
 export function StepReviewSend({
   client,
@@ -46,9 +53,20 @@ export function StepReviewSend({
   totals,
   signers,
   processContent,
+  includeHst,
 }: Props) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(amount);
+  };
+
+  const hstAmount = includeHst ? totals.total * HST_RATE : 0;
+  const grandTotal = totals.total + hstAmount;
+
+  // Strip HTML tags for preview
+  const stripHtml = (html: string) => {
+    const tmp = document.createElement('DIV');
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || '';
   };
 
   return (
@@ -90,7 +108,7 @@ export function StepReviewSend({
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Value</p>
-                <p className="font-medium">{formatCurrency(totals.total)}</p>
+                <p className="font-medium">{formatCurrency(grandTotal)}</p>
               </div>
             </div>
           </CardContent>
@@ -120,14 +138,14 @@ export function StepReviewSend({
           <CardContent>
             <ScrollArea className="h-[400px] pr-4">
               <div className="space-y-6">
-                {sections.sort((a, b) => a.sortOrder - b.sortOrder).map((section) => (
+                {sections.map((section, idx) => (
                   <div key={section.key}>
                     <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs text-muted-foreground">{idx + 1}.</span>
                       <h4 className="font-semibold">{section.title}</h4>
-                      {section.isLocked && <Badge variant="outline" className="text-xs">Legal</Badge>}
                     </div>
-                    <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      {processContent(section.content).substring(0, 300)}
+                    <div className="text-sm text-muted-foreground">
+                      {stripHtml(processContent(section.content)).substring(0, 300)}
                       {section.content.length > 300 && '...'}
                     </div>
                     <Separator className="mt-4" />
@@ -141,13 +159,16 @@ export function StepReviewSend({
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Pricing Summary</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Receipt className="h-5 w-5" />
+                Pricing Summary
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 {pricingItems.map((item) => (
                   <div key={item.id} className="flex justify-between text-sm">
-                    <span>{item.description}</span>
+                    <span className="truncate flex-1 mr-2">{item.description}</span>
                     <span>{formatCurrency(item.quantity * item.unitPrice)}</span>
                   </div>
                 ))}
@@ -157,15 +178,21 @@ export function StepReviewSend({
                   <span>{formatCurrency(totals.subtotal)}</span>
                 </div>
                 {discount.value > 0 && (
-                  <div className="flex justify-between text-sm text-muted-foreground">
+                  <div className="flex justify-between text-sm text-green-600">
                     <span>Discount ({discount.type === 'percentage' ? `${discount.value}%` : 'Fixed'})</span>
                     <span>-{formatCurrency(totals.discountAmount)}</span>
                   </div>
                 )}
+                {includeHst && (
+                  <div className="flex justify-between text-sm">
+                    <span>HST (13%)</span>
+                    <span>{formatCurrency(hstAmount)}</span>
+                  </div>
+                )}
                 <Separator className="my-2" />
-                <div className="flex justify-between font-bold">
-                  <span>Total</span>
-                  <span>{formatCurrency(totals.total)}</span>
+                <div className="flex justify-between font-bold text-lg">
+                  <span>Grand Total</span>
+                  <span className="text-primary">{formatCurrency(grandTotal)}</span>
                 </div>
               </div>
             </CardContent>
@@ -179,14 +206,23 @@ export function StepReviewSend({
               <div className="space-y-3">
                 {signers.map((signer, idx) => (
                   <div key={signer.id} className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                      signer.type === 'cipherx' ? 'bg-primary/10 text-primary' : 'bg-blue-100 text-blue-600'
+                    }`}>
                       {idx + 1}
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{signer.name || 'Name pending'}</p>
-                      <p className="text-xs text-muted-foreground">{signer.email || 'Email pending'}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{signer.name || 'Name pending'}</p>
+                      <p className="text-xs text-muted-foreground truncate">{signer.email || 'Email pending'}</p>
                     </div>
-                    <Badge variant="outline">{signer.role}</Badge>
+                    <div className="text-right">
+                      <Badge variant={signer.type === 'cipherx' ? 'default' : 'secondary'}>
+                        {signer.type === 'cipherx' ? 'CipherX' : 'Client'}
+                      </Badge>
+                      {signer.position && (
+                        <p className="text-xs text-muted-foreground mt-1">{signer.position}</p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
