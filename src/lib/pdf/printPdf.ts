@@ -491,14 +491,10 @@ const generatePricingPage = (
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(31, 41, 55);
     
-    const itemName = sanitizePdfText(item.name || 'Item');
-    const truncatedName = itemName.length > 20 ? itemName.slice(0, 18) + '..' : itemName;
-    pdf.text(truncatedName, margin + 5, tableY + 4);
-    
-    const desc = sanitizePdfText(item.description || '');
-    const truncatedDesc = desc.length > 25 ? desc.slice(0, 23) + '..' : desc;
-    pdf.setTextColor(107, 114, 128);
-    pdf.text(truncatedDesc, margin + 55, tableY + 4);
+    // Use description as the primary display
+    const itemDesc = sanitizePdfText(item.description || item.name || 'Unnamed Item');
+    const truncatedDesc = itemDesc.length > 45 ? itemDesc.slice(0, 43) + '..' : itemDesc;
+    pdf.text(truncatedDesc, margin + 5, tableY + 4);
     
     pdf.setTextColor(31, 41, 55);
     pdf.text(item.quantity.toString(), margin + 115, tableY + 4);
@@ -529,6 +525,15 @@ const generatePricingPage = (
     pdf.setTextColor(22, 163, 74);
     pdf.text(`Discount (${pricingData.discountPercent || 0}%)`, margin + 130, tableY);
     pdf.text('-' + formatCurrency(pricingData.discountAmount), pageWidth - margin - 5, tableY, { align: 'right' });
+    tableY += 10;
+  }
+  
+  // HST Tax
+  if (pricingData.includeHst && pricingData.hstAmount) {
+    pdf.setTextColor(107, 114, 128);
+    pdf.text(`HST (${pricingData.hstRate || 13}%)`, margin + 130, tableY);
+    pdf.setTextColor(31, 41, 55);
+    pdf.text(formatCurrency(pricingData.hstAmount), pageWidth - margin - 5, tableY, { align: 'right' });
     tableY += 10;
   }
   

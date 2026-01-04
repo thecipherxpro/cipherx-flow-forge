@@ -90,6 +90,9 @@ export interface PricingData {
   subtotal?: number;
   discountAmount?: number;
   discountPercent?: number;
+  includeHst?: boolean;
+  hstRate?: number;
+  hstAmount?: number;
   total?: number;
 }
 

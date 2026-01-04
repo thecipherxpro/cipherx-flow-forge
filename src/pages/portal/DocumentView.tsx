@@ -491,10 +491,7 @@ const PortalDocumentView = () => {
                           {index + 1}
                         </div>
                         <div>
-                          <p className="font-medium">{item.name || item.description}</p>
-                          {item.description && item.name && (
-                            <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
-                          )}
+                          <p className="font-medium">{item.description || item.name || 'Unnamed Item'}</p>
                           <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
                             <span>
                               {new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(item.unitPrice)} × {item.quantity}
@@ -509,14 +506,33 @@ const PortalDocumentView = () => {
                   ))}
                 </div>
                 <Separator />
-                <div className="p-4 sm:p-6 bg-primary/5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Amount</p>
-                      <p className="text-2xl font-bold text-primary">
-                        {new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(pricing.total || 0)}
-                      </p>
+                <div className="p-4 sm:p-6 bg-primary/5 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="font-medium">
+                      {new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(pricing.subtotal || 0)}
+                    </span>
+                  </div>
+                  {pricing.discountAmount && pricing.discountAmount > 0 && (
+                    <div className="flex items-center justify-between text-sm text-green-600">
+                      <span>Discount ({pricing.discountPercent || 0}%)</span>
+                      <span>-{new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(pricing.discountAmount)}</span>
                     </div>
+                  )}
+                  {pricing.includeHst && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">HST ({pricing.hstRate || 13}%)</span>
+                      <span className="font-medium">
+                        {new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(pricing.hstAmount || 0)}
+                      </span>
+                    </div>
+                  )}
+                  <Separator className="my-2" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Total Amount</span>
+                    <span className="text-2xl font-bold text-primary">
+                      {new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(pricing.total || 0)}
+                    </span>
                   </div>
                 </div>
               </CardContent>
