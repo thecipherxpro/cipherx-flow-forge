@@ -92,6 +92,7 @@ const DocumentView = () => {
   const [selectedSigner, setSelectedSigner] = useState<Signature | null>(null);
   const [isSigning, setIsSigning] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
+  const [isSending, setIsSending] = useState(false);
 
   const { data: document, isLoading: docLoading } = useQuery({
     queryKey: ['document', id, 'with-client-legacy-contact'],
@@ -336,6 +337,118 @@ const DocumentView = () => {
     }
   };
 
+  const handleSendForSignature = async () => {
+    if (!document || !id) return;
+    
+    setIsSending(true);
+    try {
+      // Fetch client users who can sign documents
+      const { data: clientUsers, error: cuError } = await supabase
+        .from('client_users')
+        .select('user_id, can_sign_documents')
+        .eq('client_id', document.client_id)
+        .eq('can_sign_documents', true);
+      
+      if (cuError) throw cuError;
+
+      // Get profiles for these users
+      const userIds = clientUsers?.map(cu => cu.user_id) || [];
+      let clientSigners: { full_name: string; email: string; user_id: string }[] = [];
+      
+      if (userIds.length > 0) {
+        const { data: profiles, error: profError } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+        
+        if (profError) throw profError;
+        clientSigners = profiles?.map(p => ({
+          full_name: p.full_name || p.email,
+          email: p.email,
+          user_id: p.id
+        })) || [];
+      }
+
+      // If no client users with sign permission, use primary contact
+      if (clientSigners.length === 0 && clientContact) {
+        clientSigners = [{
+          full_name: clientContact.full_name || 'Client Representative',
+          email: clientContact.email,
+          user_id: '' // No user ID for non-registered contacts
+        }];
+      }
+
+      if (clientSigners.length === 0) {
+        toast({ 
+          variant: 'destructive', 
+          title: 'No signers found',
+          description: 'Please add client contacts or users with signing permission'
+        });
+        return;
+      }
+
+      // Create signature records for each client signer
+      const signatureRecords = clientSigners.map((signer, idx) => ({
+        document_id: id,
+        signer_name: signer.full_name,
+        signer_email: signer.email,
+        signer_role: 'Client',
+        signer_id: signer.user_id || null,
+        is_required: true,
+        sort_order: idx,
+        position: 'client'
+      }));
+
+      const { error: sigError } = await supabase
+        .from('signatures')
+        .insert(signatureRecords);
+
+      if (sigError) throw sigError;
+
+      // Update document status to 'sent'
+      const { error: docError } = await supabase
+        .from('documents')
+        .update({ 
+          status: 'sent',
+          sent_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (docError) throw docError;
+
+      // Log to audit trail
+      let ipAddress = '0.0.0.0';
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipRes.json();
+        ipAddress = ipData.ip;
+      } catch {}
+
+      await supabase.from('document_audit_log').insert({
+        document_id: id,
+        action: 'sent_for_signature',
+        details: {
+          signers: clientSigners.map(s => ({ name: s.full_name, email: s.email })),
+          sent_by: 'admin'
+        },
+        ip_address: ipAddress
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['document', id] });
+      await refetchSignatures();
+      
+      toast({ 
+        title: 'Document sent for signature',
+        description: `Sent to ${clientSigners.length} signer(s)`
+      });
+    } catch (error) {
+      console.error('Error sending document:', error);
+      toast({ variant: 'destructive', title: 'Failed to send document' });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   if (docLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -432,9 +545,18 @@ const DocumentView = () => {
                 PDF
               </Button>
               {document.status === 'draft' && (
-                <Button size="sm" className="bg-white text-primary hover:bg-white/90">
-                  <Send className="h-4 w-4 mr-1.5" />
-                  Send
+                <Button 
+                  size="sm" 
+                  className="bg-white text-primary hover:bg-white/90"
+                  onClick={handleSendForSignature}
+                  disabled={isSending}
+                >
+                  {isSending ? (
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-1.5" />
+                  )}
+                  {isSending ? 'Sending...' : 'Send'}
                 </Button>
               )}
             </div>
