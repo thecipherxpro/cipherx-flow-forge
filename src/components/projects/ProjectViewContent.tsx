@@ -61,6 +61,7 @@ interface ProjectViewContentProps {
   showAddTask?: boolean;
   editPath?: string;
   clientLinkPath?: string;
+  onToggleMilestone?: (milestone: Milestone) => void;
 }
 
 const serviceTypeLabels: Record<string, string> = {
@@ -85,7 +86,8 @@ const ProjectViewContent = ({
   showEditButton = false,
   showAddTask = false,
   editPath,
-  clientLinkPath
+  clientLinkPath,
+  onToggleMilestone
 }: ProjectViewContentProps) => {
   const isMobile = useIsMobile();
   
@@ -328,15 +330,30 @@ const ProjectViewContent = ({
                     : 'bg-card border-border hover:bg-muted/30'
                 }`}
               >
-                <div className="mt-0.5">
-                  {milestone.completed_at ? (
-                    <div className="h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-white" />
-                    </div>
-                  ) : (
-                    <Circle className="h-5 w-5 text-muted-foreground" />
-                  )}
-                </div>
+                {onToggleMilestone ? (
+                  <button
+                    onClick={() => onToggleMilestone(milestone)}
+                    className="mt-0.5 transition-transform hover:scale-110 active:scale-95"
+                  >
+                    {milestone.completed_at ? (
+                      <div className="h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center hover:bg-emerald-600">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                      </div>
+                    ) : (
+                      <Circle className="h-5 w-5 text-muted-foreground hover:text-primary" />
+                    )}
+                  </button>
+                ) : (
+                  <div className="mt-0.5">
+                    {milestone.completed_at ? (
+                      <div className="h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                      </div>
+                    ) : (
+                      <Circle className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className={`font-medium text-sm ${
                     milestone.completed_at 
