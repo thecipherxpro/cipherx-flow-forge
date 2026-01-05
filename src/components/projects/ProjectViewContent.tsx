@@ -62,6 +62,7 @@ interface ProjectViewContentProps {
   editPath?: string;
   clientLinkPath?: string;
   onToggleMilestone?: (milestone: Milestone) => void;
+  onAddTaskClick?: () => void;
 }
 
 const serviceTypeLabels: Record<string, string> = {
@@ -87,7 +88,8 @@ const ProjectViewContent = ({
   showAddTask = false,
   editPath,
   clientLinkPath,
-  onToggleMilestone
+  onToggleMilestone,
+  onAddTaskClick
 }: ProjectViewContentProps) => {
   const isMobile = useIsMobile();
   
@@ -294,8 +296,13 @@ const ProjectViewContent = ({
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-base font-semibold text-foreground">Task List</h3>
-          {showAddTask && (
-            <Button variant="ghost" size="sm" className="text-violet-600 hover:text-violet-700 hover:bg-violet-50">
+          {showAddTask && onAddTaskClick && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-violet-600 hover:text-violet-700 hover:bg-violet-50"
+              onClick={onAddTaskClick}
+            >
               <Plus className="h-4 w-4 mr-1" />
               Add Task
             </Button>
