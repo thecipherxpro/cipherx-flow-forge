@@ -99,7 +99,7 @@ const ProjectViewContent = ({
     }
     return fallback.slice(0, 2).toUpperCase();
   };
-  return <div className="relative min-h-full pb-24 md:pb-6 mx-[88px]">
+  return <div className="relative min-h-full pb-24 md:pb-6 mx-0">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <Button variant="outline" size="icon" onClick={onBack} className="rounded-full h-10 w-10">
