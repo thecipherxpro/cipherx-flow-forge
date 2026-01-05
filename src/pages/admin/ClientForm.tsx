@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
-import { ClientUserSignerManager } from '@/components/clients/ClientUserSignerManager';
+import { ClientAssignedSigner } from '@/components/clients/ClientAssignedSigner';
 
 const AdminClientForm = () => {
   const { id } = useParams();
@@ -336,7 +336,7 @@ const AdminClientForm = () => {
           </Card>
 
           {isEditing && id && (
-            <ClientUserSignerManager clientId={id} />
+            <ClientAssignedSigner clientId={id} />
           )}
         </div>
 

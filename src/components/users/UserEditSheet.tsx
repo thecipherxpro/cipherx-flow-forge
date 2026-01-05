@@ -6,13 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, KeyRound } from 'lucide-react';
+import { Loader2, Mail, KeyRound, Building2 } from 'lucide-react';
 
 interface Profile {
   id: string;
   email: string;
   full_name: string | null;
   phone: string | null;
+}
+
+interface Client {
+  id: string;
+  company_name: string;
 }
 
 interface UserEditSheetProps {
@@ -27,10 +32,13 @@ export function UserEditSheet({ open, onOpenChange, user, currentRole, onSave }:
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [currentClientId, setCurrentClientId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
-    role: ''
+    role: '',
+    client_id: ''
   });
 
   useEffect(() => {
@@ -38,10 +46,40 @@ export function UserEditSheet({ open, onOpenChange, user, currentRole, onSave }:
       setFormData({
         full_name: user.full_name || '',
         phone: user.phone || '',
-        role: currentRole || ''
+        role: currentRole || '',
+        client_id: ''
       });
+      fetchClients();
+      fetchUserClient(user.id);
     }
   }, [user, currentRole]);
+
+  const fetchClients = async () => {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, company_name')
+      .order('company_name');
+    
+    if (!error && data) {
+      setClients(data);
+    }
+  };
+
+  const fetchUserClient = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('client_users')
+      .select('client_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (!error && data) {
+      setCurrentClientId(data.client_id);
+      setFormData(prev => ({ ...prev, client_id: data.client_id }));
+    } else {
+      setCurrentClientId(null);
+      setFormData(prev => ({ ...prev, client_id: '' }));
+    }
+  };
 
   const handleSave = async () => {
     if (!user) return;
@@ -74,6 +112,40 @@ export function UserEditSheet({ open, onOpenChange, user, currentRole, onSave }:
         }
       }
 
+      // Handle client assignment (only for client role)
+      if (formData.role === 'client') {
+        const newClientId = formData.client_id || null;
+        
+        if (currentClientId !== newClientId) {
+          // Remove from old client if exists
+          if (currentClientId) {
+            await supabase
+              .from('client_users')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('client_id', currentClientId);
+          }
+          
+          // Add to new client if selected
+          if (newClientId) {
+            await supabase
+              .from('client_users')
+              .insert({ 
+                user_id: user.id, 
+                client_id: newClientId,
+                can_sign_documents: true 
+              });
+          }
+        }
+      } else {
+        // If not client role, remove any client assignments
+        if (currentClientId) {
+          await supabase
+            .from('client_users')
+            .delete()
+            .eq('user_id', user.id);
+        }
+      }
 
       toast({ title: 'User updated successfully' });
       onSave();
@@ -116,6 +188,8 @@ export function UserEditSheet({ open, onOpenChange, user, currentRole, onSave }:
       setIsSendingReset(false);
     }
   };
+
+  const showClientSelect = formData.role === 'client';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -178,6 +252,32 @@ export function UserEditSheet({ open, onOpenChange, user, currentRole, onSave }:
             </Select>
           </div>
 
+          {/* Associated Client (only for client role) */}
+          {showClientSelect && (
+            <div className="space-y-2">
+              <Label>Associated Client</Label>
+              <Select 
+                value={formData.client_id} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, client_id: value }))}
+              >
+                <SelectTrigger>
+                  <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Select a client company..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No client assigned</SelectItem>
+                  {clients.map(client => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.company_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Assign this user to a client company for portal access
+              </p>
+            </div>
+          )}
 
           {/* Password Reset */}
           <div className="space-y-2">
