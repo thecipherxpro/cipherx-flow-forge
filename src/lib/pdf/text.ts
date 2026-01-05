@@ -159,6 +159,144 @@ const processBoldText = (text: string): string => {
   return text;
 };
 
+const isLikelyHtml = (value: string): boolean => /<\/?[a-z][\s\S]*>/i.test(value);
+
+const htmlToMarkdownish = (html: string): string => {
+  // Convert TipTap/HTML content into a markdown-ish format that our PDF renderer
+  // already understands (headings, lists, blockquotes, **bold**, *italic*, `code`).
+  try {
+    if (typeof DOMParser === 'undefined') {
+      return html.replace(/<[^>]+>/g, ' ');
+    }
+
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    const inline = (node: Node): string => {
+      if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
+      if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+      const el = node as Element;
+      const tag = el.tagName.toLowerCase();
+      const children = Array.from(el.childNodes).map(inline).join('');
+
+      switch (tag) {
+        case 'strong':
+        case 'b':
+          return `**${children}**`;
+        case 'em':
+        case 'i':
+          return `*${children}*`;
+        case 'code':
+          return `\`${children}\``;
+        case 'br':
+          return '\n';
+        case 'a':
+          return children; // keep link text
+        default:
+          return children;
+      }
+    };
+
+    const tableToMarkdown = (table: Element): string => {
+      const rows = Array.from(table.querySelectorAll('tr'));
+      if (rows.length === 0) return '';
+
+      const rowCells = rows.map((tr) =>
+        Array.from(tr.querySelectorAll('th,td')).map((c) => (c.textContent ?? '').trim())
+      );
+
+      const colCount = Math.max(...rowCells.map((r) => r.length));
+      const norm = (r: string[]) => Array.from({ length: colCount }, (_, i) => (r[i] ?? '').trim());
+
+      const firstIsHeader = rows[0].querySelectorAll('th').length > 0;
+      const header = norm(rowCells[0]);
+      const lines: string[] = [];
+
+      lines.push(`| ${header.join(' | ')} |`);
+      lines.push(`| ${Array.from({ length: colCount }, () => '---').join(' | ')} |`);
+
+      const dataRows = firstIsHeader ? rowCells.slice(1) : rowCells;
+      dataRows.forEach((r) => {
+        const rr = norm(r);
+        lines.push(`| ${rr.join(' | ')} |`);
+      });
+
+      return lines.join('\n');
+    };
+
+    const blocks = (node: Node): string => {
+      if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? '').trim();
+      if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+      const el = node as Element;
+      const tag = el.tagName.toLowerCase();
+
+      switch (tag) {
+        case 'h1':
+          return `# ${inline(el).trim()}\n\n`;
+        case 'h2':
+          return `## ${inline(el).trim()}\n\n`;
+        case 'h3':
+          return `### ${inline(el).trim()}\n\n`;
+        case 'h4':
+          return `#### ${inline(el).trim()}\n\n`;
+        case 'p': {
+          const t = inline(el).trim();
+          return t ? `${t}\n\n` : '';
+        }
+        case 'blockquote': {
+          const t = inline(el).trim();
+          if (!t) return '';
+          return (
+            t
+              .split('\n')
+              .map((l) => l.trim())
+              .filter(Boolean)
+              .map((l) => `> ${l}`)
+              .join('\n') + '\n\n'
+          );
+        }
+        case 'ul': {
+          const items = Array.from(el.querySelectorAll(':scope > li'))
+            .map((li) => inline(li).trim())
+            .filter(Boolean)
+            .map((t) => `- ${t}`)
+            .join('\n');
+          return items ? `${items}\n\n` : '';
+        }
+        case 'ol': {
+          const items = Array.from(el.querySelectorAll(':scope > li'))
+            .map((li) => inline(li).trim())
+            .filter(Boolean)
+            .map((t, idx) => `${idx + 1}. ${t}`)
+            .join('\n');
+          return items ? `${items}\n\n` : '';
+        }
+        case 'hr':
+          return '---\n\n';
+        case 'table': {
+          const md = tableToMarkdown(el);
+          return md ? `${md}\n\n` : '';
+        }
+        case 'br':
+          return '\n';
+        default:
+          return Array.from(el.childNodes).map(blocks).join('');
+      }
+    };
+
+    const result = Array.from(doc.body.childNodes).map(blocks).join('');
+    return result
+      .replace(/[\t\r]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/[ ]{2,}/g, ' ')
+      .trim();
+  } catch {
+    // As a last resort, strip tags so we never print raw HTML.
+    return html.replace(/<[^>]+>/g, ' ').replace(/[ ]{2,}/g, ' ').trim();
+  }
+};
+
 /**
  * Parses and renders rich text content to PDF with proper styling
  */
@@ -173,8 +311,9 @@ export const renderRichText = (
   let yPos = startY;
   const lineHeight = 6;
   const paragraphSpacing = 8;
-  
-  const sanitizedContent = sanitizePdfText(content);
+
+  const normalizedContent = isLikelyHtml(content) ? htmlToMarkdownish(content) : content;
+  const sanitizedContent = sanitizePdfText(normalizedContent);
   const lines = sanitizedContent.split('\n');
   
   const checkPageBreak = (requiredSpace: number = 20) => {
