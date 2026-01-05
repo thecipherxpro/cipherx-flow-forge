@@ -212,9 +212,76 @@ const DocumentBuilder = () => {
   };
 
   const handleSend = async () => {
-    await handleSaveDraft();
-    // TODO: Implement send functionality
-    toast({ title: 'Document saved. Send functionality coming soon.' });
+    if (!selectedClient || !serviceType || !documentType) {
+      toast({ variant: 'destructive', title: 'Missing required fields' });
+      return;
+    }
+
+    if (signers.length === 0) {
+      toast({ variant: 'destructive', title: 'At least one signer is required' });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { subtotal, discountAmount, total } = calculateTotal();
+      const hstAmount = includeHst ? total * 0.13 : 0;
+      
+      const processedSections = sections.map(s => ({
+        ...s,
+        content: processContent(s.content),
+      }));
+
+      // Create document with status 'sent' directly
+      const { data, error } = await supabase.from('documents').insert([{
+        title,
+        client_id: selectedClient.id,
+        document_type: documentType,
+        service_type: serviceType,
+        status: 'sent' as const,
+        content: JSON.parse(JSON.stringify({ sections: processedSections, compliances: selectedCompliances })),
+        pricing_data: JSON.parse(JSON.stringify({ 
+          items: pricingItems, 
+          discount, 
+          subtotal, 
+          discountAmount, 
+          total, 
+          includeHst, 
+          hstAmount,
+          grandTotal: total + hstAmount
+        })),
+        compliance_confirmed: selectedCompliances.length > 0,
+        expires_at: expiresAt?.toISOString(),
+        sent_at: new Date().toISOString(),
+        created_by: user?.id,
+      }]).select().single();
+
+      if (error) throw error;
+
+      // Save signatures (only once, directly here)
+      if (data) {
+        const signatureInserts = signers.map((signer, idx) => ({
+          document_id: data.id,
+          signer_name: signer.name,
+          signer_email: signer.email,
+          signer_role: signer.role,
+          position: signer.position || null,
+          is_required: signer.isRequired,
+          sort_order: idx,
+        }));
+        
+        const { error: sigError } = await supabase.from('signatures').insert(signatureInserts);
+        if (sigError) throw sigError;
+      }
+
+      toast({ title: 'Document sent for signature!' });
+      navigate('/admin/documents');
+    } catch (error) {
+      console.error('Error sending document:', error);
+      toast({ variant: 'destructive', title: 'Failed to send document' });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const renderStep = () => {
