@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
@@ -11,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { CalendarIcon, Building2, User, Loader2 } from 'lucide-react';
+import { CalendarIcon, Building2, User, Loader2, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -45,15 +46,6 @@ interface CompanySigner {
   is_active: boolean;
 }
 
-interface ClientUser {
-  user_id: string;
-  can_sign_documents: boolean;
-  profiles: {
-    email: string;
-    full_name: string | null;
-  };
-}
-
 interface Props {
   signers: Signer[];
   onChange: (signers: Signer[]) => void;
@@ -76,16 +68,32 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
     },
   });
 
-  const { data: clientUsers, isLoading: loadingClientUsers } = useQuery({
-    queryKey: ['client-users-for-signing', client?.id],
+  // Fetch the assigned client user who can sign documents
+  const { data: assignedSigner, isLoading: loadingAssignedSigner } = useQuery({
+    queryKey: ['client-assigned-signer', client?.id],
     queryFn: async () => {
-      if (!client?.id) return [];
-      const { data, error } = await supabase
+      if (!client?.id) return null;
+      
+      // Get client_users with can_sign_documents = true
+      const { data: clientUsers, error: clientUsersError } = await supabase
         .from('client_users')
-        .select('user_id, can_sign_documents, profiles(email, full_name)')
-        .eq('client_id', client.id);
-      if (error) throw error;
-      return data as unknown as ClientUser[];
+        .select('user_id, can_sign_documents')
+        .eq('client_id', client.id)
+        .eq('can_sign_documents', true);
+
+      if (clientUsersError) throw clientUsersError;
+      if (!clientUsers || clientUsers.length === 0) return null;
+
+      // Get the first signer's profile
+      const signerId = clientUsers[0].user_id;
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, email, full_name')
+        .eq('id', signerId)
+        .single();
+
+      if (profileError) throw profileError;
+      return profile;
     },
     enabled: !!client?.id,
   });
@@ -93,10 +101,24 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
   const cipherxSigner = signers.find(s => s.type === 'cipherx');
   const clientSigner = signers.find(s => s.type === 'client');
 
+  // Auto-set client signer when assigned signer data loads
+  useEffect(() => {
+    if (assignedSigner && !clientSigner) {
+      const newSigner: Signer = {
+        id: `client_user_${assignedSigner.id}`,
+        name: assignedSigner.full_name || assignedSigner.email || 'Client User',
+        email: assignedSigner.email || '',
+        role: 'Client Representative',
+        isRequired: true,
+        type: 'client',
+      };
+      onChange([...signers.filter(s => s.type !== 'client'), newSigner]);
+    }
+  }, [assignedSigner]);
+
   const handleCipherXSignerChange = (signerId: string) => {
     const signer = companySigners?.find(s => s.id === signerId);
     if (!signer) {
-      // Remove cipherx signer
       onChange(signers.filter(s => s.type !== 'cipherx'));
       return;
     }
@@ -111,30 +133,7 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
       type: 'cipherx',
     };
 
-    // Replace or add cipherx signer
     const otherSigners = signers.filter(s => s.type !== 'cipherx');
-    onChange([...otherSigners, newSigner]);
-  };
-
-  const handleClientSignerChange = (userId: string) => {
-    const user = clientUsers?.find(u => u.user_id === userId);
-    if (!user) {
-      // Remove client signer
-      onChange(signers.filter(s => s.type !== 'client'));
-      return;
-    }
-
-    const newSigner: Signer = {
-      id: `client_user_${user.user_id}`,
-      name: user.profiles?.full_name || user.profiles?.email || 'Client User',
-      email: user.profiles?.email || '',
-      role: 'Client Representative',
-      isRequired: true,
-      type: 'client',
-    };
-
-    // Replace or add client signer
-    const otherSigners = signers.filter(s => s.type !== 'client');
     onChange([...otherSigners, newSigner]);
   };
 
@@ -203,12 +202,12 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
           </CardContent>
         </Card>
 
-        {/* Client Signer */}
+        {/* Client Signer - Auto-assigned */}
         <Card>
           <CardHeader className="pb-3 sm:pb-4">
             <CardTitle className="text-base sm:text-lg">Client Signer</CardTitle>
             <CardDescription className="text-xs sm:text-sm">
-              Select portal user from {client?.company_name || 'selected client'}
+              Automatically assigned from {client?.company_name || 'selected client'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 sm:space-y-4">
@@ -229,48 +228,28 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
                   </div>
                 </div>
 
-                {loadingClientUsers ? (
+                {loadingAssignedSigner ? (
                   <div className="flex justify-center py-4">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                ) : clientUsers && clientUsers.length > 0 ? (
-                  <>
-                    <Select
-                      value={clientSigner?.id?.replace('client_user_', '') || ''}
-                      onValueChange={handleClientSignerChange}
-                    >
-                      <SelectTrigger className="w-full text-sm">
-                        <SelectValue placeholder="Select client signer..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clientUsers.map((user) => (
-                          <SelectItem key={user.user_id} value={user.user_id}>
-                            <div className="flex items-center gap-2">
-                              <span className="truncate">{user.profiles?.full_name || 'No name'}</span>
-                              <span className="text-muted-foreground text-xs">({user.profiles?.email})</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    {clientSigner && (
-                      <div className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 border rounded-lg bg-muted/30">
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                          <User className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm sm:text-base truncate">{clientSigner.name}</p>
-                          <p className="text-xs sm:text-sm text-muted-foreground truncate">{clientSigner.email}</p>
-                          <Badge variant="outline" className="mt-1 text-[10px] sm:text-xs">{clientSigner.role}</Badge>
-                        </div>
-                      </div>
-                    )}
-                  </>
+                ) : clientSigner ? (
+                  <div className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 border rounded-lg bg-muted/30">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                      <User className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm sm:text-base truncate">{clientSigner.name}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{clientSigner.email}</p>
+                      <Badge variant="outline" className="mt-1 text-[10px] sm:text-xs">{clientSigner.role}</Badge>
+                    </div>
+                  </div>
                 ) : (
-                  <p className="text-xs sm:text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 sm:p-3 rounded-lg">
-                    No portal users assigned to this client. Add users in the Users section.
-                  </p>
+                  <div className="flex items-center gap-3 p-3 rounded-lg border border-dashed bg-amber-50 dark:bg-amber-900/20">
+                    <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+                    <p className="text-xs sm:text-sm text-amber-700 dark:text-amber-400">
+                      No signer assigned to this client. Assign a user with signing permissions in the Users page.
+                    </p>
+                  </div>
                 )}
               </div>
             ) : (
@@ -308,6 +287,7 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
                   onSelect={(date) => onExpiresAtChange(date || null)}
                   disabled={(date) => date < new Date()}
                   initialFocus
+                  className={cn("p-3 pointer-events-auto")}
                 />
               </PopoverContent>
             </Popover>
