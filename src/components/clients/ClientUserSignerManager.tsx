@@ -245,36 +245,43 @@ export function ClientUserSignerManager({ clientId }: Props) {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Add User Section */}
-          {availableUsers.length > 0 && (
-            <div className="flex flex-col sm:flex-row gap-3 p-4 rounded-lg border border-dashed bg-muted/30">
-              <div className="flex-1">
-                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a user to add..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableUsers.map(user => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.full_name || user.email} {user.full_name && `(${user.email})`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <div className="flex flex-col sm:flex-row gap-3 p-4 rounded-lg border border-dashed bg-muted/30">
+            {availableUsers.length > 0 ? (
+              <>
+                <div className="flex-1">
+                  <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a user to add..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableUsers.map(user => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.full_name || user.email} {user.full_name && `(${user.email})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button 
+                  onClick={addUserToClient} 
+                  disabled={!selectedUserId || isAdding}
+                  className="shrink-0"
+                >
+                  {isAdding ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <UserPlus className="h-4 w-4 mr-2" />
+                  )}
+                  Add to Client
+                </Button>
+              </>
+            ) : (
+              <div className="flex items-center gap-3 text-sm text-muted-foreground w-full">
+                <UserPlus className="h-5 w-5 shrink-0" />
+                <span>No available users to add. Create users with "client" role in the Users page first.</span>
               </div>
-              <Button 
-                onClick={addUserToClient} 
-                disabled={!selectedUserId || isAdding}
-                className="shrink-0"
-              >
-                {isAdding ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <UserPlus className="h-4 w-4 mr-2" />
-                )}
-                Add to Client
-              </Button>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Existing Users List */}
           {clientUsers.length === 0 ? (
