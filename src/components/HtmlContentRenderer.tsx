@@ -20,7 +20,7 @@ const HtmlContentRenderer: React.FC<HtmlContentRendererProps> = ({ content, clas
   if (isHtml) {
     return (
       <div 
-        className={`html-content-renderer prose prose-slate dark:prose-invert max-w-none ${className}`}
+        className={`html-content-renderer max-w-none ${className}`}
         dangerouslySetInnerHTML={{ __html: content }}
       />
     );
