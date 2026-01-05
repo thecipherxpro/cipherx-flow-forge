@@ -257,15 +257,15 @@ export function UserEditSheet({ open, onOpenChange, user, currentRole, onSave }:
             <div className="space-y-2">
               <Label>Associated Client</Label>
               <Select 
-                value={formData.client_id} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, client_id: value }))}
+                value={formData.client_id || 'none'} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, client_id: value === 'none' ? '' : value }))}
               >
                 <SelectTrigger>
                   <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
                   <SelectValue placeholder="Select a client company..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No client assigned</SelectItem>
+                  <SelectItem value="none">No client assigned</SelectItem>
                   {clients.map(client => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.company_name}
