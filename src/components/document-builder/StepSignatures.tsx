@@ -108,7 +108,7 @@ export function StepSignatures({ signers, onChange, client, expiresAt, onExpires
         id: `client_user_${assignedSigner.id}`,
         name: assignedSigner.full_name || assignedSigner.email || 'Client User',
         email: assignedSigner.email || '',
-        role: 'Client Representative',
+        role: 'Client',
         isRequired: true,
         type: 'client',
       };
