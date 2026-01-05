@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { 
   ArrowLeft, 
   Download, 
@@ -22,7 +24,10 @@ import {
   FileSignature,
   ChevronRight,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Shield,
+  Globe,
+  MapPin
 } from 'lucide-react';
 import HtmlContentRenderer from '@/components/HtmlContentRenderer';
 import { format } from 'date-fns';
@@ -37,7 +42,16 @@ import type {
   PdfGeneratorOptions
 } from '@/lib/pdf';
 import { useToast } from '@/hooks/use-toast';
+import { SignatureCanvas, SignatureCanvasRef } from '@/components/SignatureCanvas';
 import cipherxLogo from '@/assets/cipherx-logo.png';
+
+interface LocationData {
+  latitude?: number;
+  longitude?: number;
+  city?: string;
+  country?: string;
+  timezone?: string;
+}
 
 const statusConfig: Record<string, { color: string; bgColor: string; icon: React.ReactNode; label: string }> = {
   draft: { color: 'text-muted-foreground', bgColor: 'bg-muted', icon: <FileText className="h-4 w-4" />, label: 'Draft' },
@@ -56,10 +70,69 @@ const documentTypeConfig: Record<string, { label: string; color: string; prefix:
 const PortalDocumentView = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { clientId } = useAuth();
+  const { clientId, user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isExporting, setIsExporting] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
+  
+  // Signature states
+  const signatureRef = useRef<SignatureCanvasRef>(null);
+  const [hasSignature, setHasSignature] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  const [isSigning, setIsSigning] = useState(false);
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
+  const [ipAddress, setIpAddress] = useState<string>('');
+
+  // Fetch IP address
+  useEffect(() => {
+    const fetchIP = async () => {
+      try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        setIpAddress(data.ip);
+      } catch (error) {
+        console.error('Failed to fetch IP:', error);
+        setIpAddress('unknown');
+      }
+    };
+    fetchIP();
+  }, []);
+
+  // Fetch location
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          try {
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+            );
+            const data = await response.json();
+            setLocationData({
+              latitude,
+              longitude,
+              city: data.address?.city || data.address?.town || data.address?.village,
+              country: data.address?.country,
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            });
+          } catch {
+            setLocationData({
+              latitude,
+              longitude,
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            });
+          }
+        },
+        () => {
+          setLocationData({
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          });
+        }
+      );
+    }
+  }, []);
 
   const { data: document, isLoading: docLoading } = useQuery({
     queryKey: ['portal-document', id],
@@ -167,6 +240,108 @@ const PortalDocumentView = () => {
     }
   };
 
+  // Find the current user's pending signature
+  const userPendingSignature = signatures?.find(
+    (sig) => sig.signer_email === user?.email && !sig.signed_at
+  );
+
+  // Signature mutation
+  const signMutation = useMutation({
+    mutationFn: async (signatureData: string) => {
+      if (!userPendingSignature || !document) throw new Error('Missing data');
+
+      // Update signature with captured data
+      const { error: sigError } = await supabase
+        .from('signatures')
+        .update({
+          signature_data: signatureData,
+          signed_at: new Date().toISOString(),
+          ip_address: ipAddress,
+          location_data: locationData as any,
+          user_agent: navigator.userAgent,
+        })
+        .eq('id', userPendingSignature.id);
+
+      if (sigError) throw sigError;
+
+      // Log to audit trail
+      await supabase.from('document_audit_log').insert([{
+        document_id: document.id,
+        action: 'signed',
+        ip_address: ipAddress,
+        details: JSON.parse(JSON.stringify({
+          signer_name: userPendingSignature.signer_name,
+          signer_email: userPendingSignature.signer_email,
+          signer_role: userPendingSignature.signer_role,
+          location: locationData,
+          user_agent: navigator.userAgent,
+        })),
+      }]);
+
+      // Check if all required signatures are complete
+      const { data: remainingSignatures } = await supabase
+        .from('signatures')
+        .select('id')
+        .eq('document_id', document.id)
+        .eq('is_required', true)
+        .is('signed_at', null)
+        .neq('id', userPendingSignature.id);
+
+      // If no remaining required signatures, lock the document
+      if (!remainingSignatures || remainingSignatures.length === 0) {
+        await supabase
+          .from('documents')
+          .update({ status: 'signed' })
+          .eq('id', document.id);
+
+        await supabase.from('document_audit_log').insert([{
+          document_id: document.id,
+          action: 'completed',
+          ip_address: ipAddress,
+          details: JSON.parse(JSON.stringify({
+            message: 'All required signatures collected. Document locked.',
+          })),
+        }]);
+      }
+
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal-signatures', id] });
+      queryClient.invalidateQueries({ queryKey: ['portal-document', id] });
+      setHasSignature(false);
+      setAgreed(false);
+      signatureRef.current?.clear();
+      toast({ title: 'Document signed successfully!' });
+    },
+    onError: (error) => {
+      console.error('Signing error:', error);
+      toast({ variant: 'destructive', title: 'Failed to sign document' });
+    },
+  });
+
+  const handleSign = async () => {
+    if (!signatureRef.current || signatureRef.current.isEmpty()) {
+      toast({ variant: 'destructive', title: 'Please draw your signature' });
+      return;
+    }
+
+    if (!agreed) {
+      toast({ variant: 'destructive', title: 'Please agree to the terms' });
+      return;
+    }
+
+    setIsSigning(true);
+    try {
+      const signatureData = signatureRef.current.getSignatureData();
+      if (signatureData) {
+        await signMutation.mutateAsync(signatureData);
+      }
+    } finally {
+      setIsSigning(false);
+    }
+  };
+
   if (docLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -251,16 +426,17 @@ const PortalDocumentView = () => {
             </div>
 
             <div className="flex gap-3">
-              {document.status === 'sent' && (
+              {document.status === 'sent' && userPendingSignature && (
                 <Button 
                   size="lg" 
                   className="bg-white text-primary hover:bg-white/90 shadow-lg"
-                  asChild
+                  onClick={() => {
+                    const element = window.document.getElementById('signature-section');
+                    element?.scrollIntoView({ behavior: 'smooth' });
+                  }}
                 >
-                  <Link to={`/sign/${document.id}`}>
-                    <PenTool className="h-4 w-4 mr-2" />
-                    Sign Document
-                  </Link>
+                  <PenTool className="h-4 w-4 mr-2" />
+                  Sign Document
                 </Button>
               )}
               {document.status === 'signed' && (
@@ -535,6 +711,91 @@ const PortalDocumentView = () => {
                     </span>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Signature Section */}
+          {document.status === 'sent' && userPendingSignature && (
+            <Card id="signature-section" className="overflow-hidden border-2 border-primary/20">
+              <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b">
+                <CardTitle className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Shield className="h-5 w-5 text-primary" />
+                  </div>
+                  Sign Document
+                </CardTitle>
+                <CardDescription>
+                  Please review the document and provide your electronic signature below
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                {/* Signer Info */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-muted/50 rounded-lg">
+                  <div className="flex-1">
+                    <div className="font-medium">{userPendingSignature.signer_name}</div>
+                    <div className="text-sm text-muted-foreground">{userPendingSignature.signer_email}</div>
+                    <Badge variant="secondary" className="mt-2">{userPendingSignature.signer_role}</Badge>
+                  </div>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    {ipAddress && (
+                      <div className="flex items-center gap-1">
+                        <Globe className="h-4 w-4" />
+                        IP: {ipAddress}
+                      </div>
+                    )}
+                    {locationData?.city && (
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-4 w-4" />
+                        {locationData.city}, {locationData.country}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Signature Canvas */}
+                <div>
+                  <Label className="text-sm font-medium mb-3 block">Your Signature</Label>
+                  <SignatureCanvas
+                    ref={signatureRef}
+                    height={180}
+                    onChange={setHasSignature}
+                  />
+                </div>
+
+                {/* Agreement */}
+                <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg border">
+                  <Checkbox
+                    id="agree"
+                    checked={agreed}
+                    onCheckedChange={(checked) => setAgreed(checked === true)}
+                  />
+                  <Label htmlFor="agree" className="text-sm leading-relaxed cursor-pointer">
+                    I confirm that I have read and understood this document. I agree that my electronic 
+                    signature is the legal equivalent of my manual signature on this document. I consent 
+                    to the collection of my IP address and location data for verification purposes.
+                  </Label>
+                </div>
+
+                {/* Sign Button */}
+                <Button
+                  onClick={handleSign}
+                  disabled={!hasSignature || !agreed || isSigning}
+                  size="lg"
+                  className="w-full"
+                >
+                  {isSigning ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Signing...
+                    </>
+                  ) : (
+                    <>
+                      <PenTool className="h-4 w-4 mr-2" />
+                      Sign Document
+                    </>
+                  )}
+                </Button>
               </CardContent>
             </Card>
           )}
