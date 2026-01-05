@@ -1,0 +1,431 @@
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { ChevronLeft, ChevronRight, Save, Send, FileText, Loader2, ArrowLeft } from 'lucide-react';
+
+// Wizard Steps
+import { StepSelectClient } from '@/components/document-builder/StepSelectClient';
+import { StepSelectService } from '@/components/document-builder/StepSelectService';
+import { StepLoadTemplate } from '@/components/document-builder/StepLoadTemplate';
+import { StepEditSections } from '@/components/document-builder/StepEditSections';
+import { StepPricing } from '@/components/document-builder/StepPricing';
+import { StepCompliance } from '@/components/document-builder/StepCompliance';
+import { StepSignatures } from '@/components/document-builder/StepSignatures';
+import { StepReviewSend } from '@/components/document-builder/StepReviewSend';
+
+import { serviceTypeLabels, documentTypeLabels, type TemplateSection, type PricingItem } from '@/lib/templates/service-templates';
+import type { Database, Json } from '@/integrations/supabase/types';
+
+type DocumentType = Database['public']['Enums']['document_type'];
+type ServiceType = Database['public']['Enums']['service_type'];
+
+interface Client {
+  id: string;
+  company_name: string;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  address_line1?: string | null;
+  city?: string | null;
+  province?: string | null;
+  postal_code?: string | null;
+}
+
+interface Signer {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  position?: string;
+  isRequired: boolean;
+  type: 'cipherx' | 'client';
+}
+
+const STEPS = [
+  { id: 1, name: 'Select Client', description: 'Choose the client' },
+  { id: 2, name: 'Select Service', description: 'Choose service type' },
+  { id: 3, name: 'Load Template', description: 'Select document type' },
+  { id: 4, name: 'Edit Sections', description: 'Customize content' },
+  { id: 5, name: 'Pricing', description: 'Set pricing & discounts' },
+  { id: 6, name: 'Compliance', description: 'Select compliance' },
+  { id: 7, name: 'Signatures', description: 'Setup signers' },
+  { id: 8, name: 'Review & Send', description: 'Preview and send' },
+];
+
+const DocumentEdit = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentStep, setCurrentStep] = useState(4); // Start at Edit Sections for editing
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Form State
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [serviceType, setServiceType] = useState<ServiceType | null>(null);
+  const [documentType, setDocumentType] = useState<DocumentType | null>(null);
+  const [title, setTitle] = useState('');
+  const [sections, setSections] = useState<TemplateSection[]>([]);
+  const [pricingItems, setPricingItems] = useState<PricingItem[]>([]);
+  const [discount, setDiscount] = useState({ type: 'percentage' as 'percentage' | 'fixed', value: 0 });
+  const [includeHst, setIncludeHst] = useState(false);
+  const [selectedCompliances, setSelectedCompliances] = useState<string[]>([]);
+  const [signers, setSigners] = useState<Signer[]>([]);
+  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (id) {
+      fetchDocument();
+    }
+  }, [id]);
+
+  const fetchDocument = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch document
+      const { data: doc, error: docError } = await supabase
+        .from('documents')
+        .select('*, clients(*)')
+        .eq('id', id)
+        .single();
+
+      if (docError) throw docError;
+
+      // Set client
+      if (doc.clients) {
+        setSelectedClient(doc.clients as Client);
+      }
+
+      // Set basic info
+      setServiceType(doc.service_type);
+      setDocumentType(doc.document_type);
+      setTitle(doc.title);
+
+      // Set content
+      const content = doc.content as { sections?: TemplateSection[]; compliances?: string[] } | null;
+      if (content?.sections) {
+        setSections(content.sections);
+      }
+      if (content?.compliances) {
+        setSelectedCompliances(content.compliances);
+      }
+
+      // Set pricing
+      const pricing = doc.pricing_data as { 
+        items?: PricingItem[]; 
+        discount?: { type: 'percentage' | 'fixed'; value: number }; 
+        includeHst?: boolean;
+      } | null;
+      if (pricing?.items) {
+        setPricingItems(pricing.items);
+      }
+      if (pricing?.discount) {
+        setDiscount(pricing.discount);
+      }
+      if (pricing?.includeHst !== undefined) {
+        setIncludeHst(pricing.includeHst);
+      }
+
+      // Set expiry
+      if (doc.expires_at) {
+        setExpiresAt(new Date(doc.expires_at));
+      }
+
+      // Fetch signatures
+      const { data: sigs } = await supabase
+        .from('signatures')
+        .select('*')
+        .eq('document_id', id)
+        .order('sort_order');
+
+      if (sigs) {
+        setSigners(sigs.map(s => ({
+          id: s.id,
+          name: s.signer_name,
+          email: s.signer_email,
+          role: s.signer_role,
+          position: s.position || undefined,
+          isRequired: s.is_required ?? true,
+          type: s.signer_role.toLowerCase().includes('client') ? 'client' : 'cipherx',
+        })));
+      }
+
+    } catch (error) {
+      console.error('Error fetching document:', error);
+      toast({ variant: 'destructive', title: 'Failed to load document' });
+      navigate('/admin/documents');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Replace placeholders in section content
+  const processContent = (content: string): string => {
+    if (!selectedClient) return content;
+    
+    const clientAddress = [
+      selectedClient.address_line1,
+      selectedClient.city,
+      selectedClient.province,
+      selectedClient.postal_code,
+    ].filter(Boolean).join(', ');
+
+    return content
+      .replace(/\{\{CLIENT_NAME\}\}/g, selectedClient.company_name)
+      .replace(/\{\{CLIENT_ADDRESS\}\}/g, clientAddress || 'Address to be provided')
+      .replace(/\{\{DATE\}\}/g, new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' }))
+      .replace(/\{\{EXPIRY_DATE\}\}/g, expiresAt ? expiresAt.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' }) : '30 days from date above');
+  };
+
+  const calculateTotal = () => {
+    const subtotal = pricingItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+    const discountAmount = discount.type === 'percentage' 
+      ? subtotal * (discount.value / 100) 
+      : discount.value;
+    return { subtotal, discountAmount, total: subtotal - discountAmount };
+  };
+
+  const canProceed = (): boolean => {
+    switch (currentStep) {
+      case 1: return !!selectedClient;
+      case 2: return !!serviceType;
+      case 3: return !!documentType;
+      case 4: return sections.length > 0;
+      case 5: return pricingItems.length > 0;
+      case 6: return selectedCompliances.length > 0;
+      case 7: return signers.length > 0;
+      case 8: return true;
+      default: return false;
+    }
+  };
+
+  const handleNext = () => {
+    if (currentStep < STEPS.length && canProceed()) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!selectedClient || !serviceType || !documentType) {
+      toast({ variant: 'destructive', title: 'Missing required fields' });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { subtotal, discountAmount, total } = calculateTotal();
+      const hstAmount = includeHst ? total * 0.13 : 0;
+      
+      const processedSections = sections.map(s => ({
+        ...s,
+        content: processContent(s.content),
+      }));
+
+      const { error } = await supabase.from('documents').update({
+        title,
+        client_id: selectedClient.id,
+        document_type: documentType,
+        service_type: serviceType,
+        content: JSON.parse(JSON.stringify({ sections: processedSections, compliances: selectedCompliances })),
+        pricing_data: JSON.parse(JSON.stringify({ 
+          items: pricingItems, 
+          discount, 
+          subtotal, 
+          discountAmount, 
+          total, 
+          includeHst, 
+          hstAmount,
+          grandTotal: total + hstAmount
+        })),
+        compliance_confirmed: selectedCompliances.length > 0,
+        expires_at: expiresAt?.toISOString(),
+      }).eq('id', id);
+
+      if (error) throw error;
+
+      // Delete existing signatures and re-insert
+      await supabase.from('signatures').delete().eq('document_id', id);
+      
+      if (signers.length > 0) {
+        const signatureInserts = signers.map((signer, idx) => ({
+          document_id: id!,
+          signer_name: signer.name,
+          signer_email: signer.email,
+          signer_role: signer.role,
+          position: signer.position || null,
+          is_required: signer.isRequired,
+          sort_order: idx,
+        }));
+        await supabase.from('signatures').insert(signatureInserts);
+      }
+
+      toast({ title: 'Document updated successfully' });
+      navigate(`/admin/documents/${id}`);
+    } catch (error) {
+      console.error('Error updating document:', error);
+      toast({ variant: 'destructive', title: 'Failed to update document' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSend = async () => {
+    await handleSave();
+    toast({ title: 'Document saved. Send functionality coming soon.' });
+  };
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 1:
+        return <StepSelectClient selectedClient={selectedClient as any} onSelect={setSelectedClient as any} />;
+      case 2:
+        return <StepSelectService serviceType={serviceType} onSelect={setServiceType} />;
+      case 3:
+        return <StepLoadTemplate documentType={documentType} serviceType={serviceType} onSelect={setDocumentType} title={title} onTitleChange={setTitle} />;
+      case 4:
+        return <StepEditSections sections={sections} onChange={setSections} processContent={processContent} />;
+      case 5:
+        return <StepPricing items={pricingItems} onChange={setPricingItems} discount={discount} onDiscountChange={setDiscount} totals={calculateTotal()} />;
+      case 6:
+        return <StepCompliance selectedCompliances={selectedCompliances} onSelectedChange={setSelectedCompliances} serviceType={serviceType} />;
+      case 7:
+        return <StepSignatures signers={signers} onChange={setSigners} client={selectedClient} expiresAt={expiresAt} onExpiresAtChange={setExpiresAt} />;
+      case 8:
+        return <StepReviewSend client={selectedClient} documentType={documentType} serviceType={serviceType} title={title} sections={sections} pricingItems={pricingItems} discount={discount} totals={calculateTotal()} signers={signers} processContent={processContent} includeHst={includeHst} />;
+      default:
+        return null;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(`/admin/documents/${id}`)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Edit Document</h1>
+            <p className="text-sm text-muted-foreground">{title}</p>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => navigate(`/admin/documents/${id}`)} className="w-full sm:w-auto">
+          Cancel
+        </Button>
+      </div>
+
+      {/* Progress Steps */}
+      <Card>
+        <CardContent className="pt-4 pb-3 sm:pt-6 sm:pb-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium">Step {currentStep} of {STEPS.length}</span>
+            <span className="text-sm text-muted-foreground">{Math.round((currentStep / STEPS.length) * 100)}%</span>
+          </div>
+          <Progress value={(currentStep / STEPS.length) * 100} className="h-2 mb-3" />
+          
+          {/* Mobile: Show current step name */}
+          <div className="sm:hidden text-center">
+            <span className="text-sm font-medium text-primary">{STEPS[currentStep - 1].name}</span>
+          </div>
+          
+          {/* Desktop: Show all steps - all clickable for editing */}
+          <div className="hidden sm:grid grid-cols-8 gap-1">
+            {STEPS.map((step) => (
+              <button
+                key={step.id}
+                onClick={() => setCurrentStep(step.id)}
+                className={`text-center p-2 rounded-lg transition-colors cursor-pointer ${
+                  step.id === currentStep 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'bg-primary/10 text-primary hover:bg-primary/20'
+                }`}
+              >
+                <div className="text-xs font-medium">{step.id}</div>
+                <div className="text-[10px] truncate">{step.name.split(' ')[0]}</div>
+              </button>
+            ))}
+          </div>
+          
+          {/* Mobile: Horizontal scrollable step indicators */}
+          <div className="sm:hidden flex gap-1 mt-3 overflow-x-auto pb-1">
+            {STEPS.map((step) => (
+              <button
+                key={step.id}
+                onClick={() => setCurrentStep(step.id)}
+                className={`flex-shrink-0 w-8 h-8 rounded-full text-xs font-medium transition-colors ${
+                  step.id === currentStep 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'bg-primary/10 text-primary'
+                }`}
+              >
+                {step.id}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Step Content */}
+      <Card className="min-h-[300px] sm:min-h-[400px]">
+        <CardHeader className="pb-3 sm:pb-6">
+          <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+            <FileText className="h-5 w-5" />
+            {STEPS[currentStep - 1].name}
+          </CardTitle>
+          <CardDescription className="text-sm">{STEPS[currentStep - 1].description}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {renderStep()}
+        </CardContent>
+      </Card>
+
+      {/* Navigation */}
+      <div className="flex flex-col sm:flex-row justify-between gap-3">
+        <Button variant="outline" onClick={handleBack} disabled={currentStep === 1} className="order-2 sm:order-1">
+          <ChevronLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
+        <div className="flex flex-col sm:flex-row gap-2 order-1 sm:order-2">
+          <Button variant="outline" onClick={handleSave} disabled={isSaving || !selectedClient} className="w-full sm:w-auto">
+            <Save className="h-4 w-4 mr-2" />
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </Button>
+          {currentStep === STEPS.length ? (
+            <Button onClick={handleSend} disabled={!canProceed() || isSaving} className="w-full sm:w-auto">
+              <Send className="h-4 w-4 mr-2" />
+              Send for Signature
+            </Button>
+          ) : (
+            <Button onClick={handleNext} disabled={!canProceed()} className="w-full sm:w-auto">
+              Next
+              <ChevronRight className="h-4 w-4 ml-2" />
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DocumentEdit;
