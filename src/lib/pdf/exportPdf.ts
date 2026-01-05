@@ -258,127 +258,69 @@ export const generateExportPdf = async (options: PdfGeneratorOptions): Promise<j
     pdf.line(margin, 35, pageWidth - margin, 35);
     
     // Agreement quote box
-    let sigY = 48;
+    const agreementBoxY = 48;
     pdf.setFillColor(250, 250, 252);
-    pdf.rect(margin, sigY, contentWidth, 28, 'F');
+    pdf.rect(margin, agreementBoxY, contentWidth, 28, 'F');
     pdf.setDrawColor(100, 100, 100);
     pdf.setLineWidth(1);
-    pdf.line(margin, sigY, margin, sigY + 28);
+    pdf.line(margin, agreementBoxY, margin, agreementBoxY + 28);
     
     pdf.setFontSize(9);
     pdf.setFont('helvetica', 'italic');
     pdf.setTextColor(80, 80, 80);
     const agreementText = 'By signing below, the parties acknowledge that they have read, understood, and agree to be bound by the terms and conditions set forth in this proposal. This agreement shall be effective upon execution by both parties.';
     const wrappedAgreement = pdf.splitTextToSize(agreementText, contentWidth - 10);
-    pdf.text(wrappedAgreement, margin + 5, sigY + 10);
-    
-    sigY += 40;
+    pdf.text(wrappedAgreement, margin + 5, agreementBoxY + 10);
     
     // Split signatures into service provider (CipherX) and client
     const cipherxSigners = signatures.filter(s => s.signer_role.toLowerCase().includes('cipherx') || s.signer_role.toLowerCase().includes('service provider') || s.signer_role.toLowerCase() === 'company representative');
     const clientSigners = signatures.filter(s => s.signer_role.toLowerCase().includes('client') || !cipherxSigners.includes(s));
     
-    const halfWidth = (contentWidth - 10) / 2;
-    const leftCol = margin;
-    const rightCol = margin + halfWidth + 10;
+    // Two-column layout with consistent positioning
+    const colGap = 15;
+    const halfWidth = (contentWidth - colGap) / 2;
+    const leftColX = margin;
+    const rightColX = margin + halfWidth + colGap;
     
-    // SERVICE PROVIDER SECTION
+    // Header row Y position
+    const headerY = 88;
+    
+    // === LEFT COLUMN: SERVICE PROVIDER ===
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(31, 41, 55);
-    pdf.text('SERVICE PROVIDER', leftCol, sigY);
+    pdf.text('SERVICE PROVIDER', leftColX, headerY);
     
     pdf.setDrawColor(200, 200, 200);
     pdf.setLineWidth(0.5);
-    pdf.line(leftCol, sigY + 3, leftCol + halfWidth, sigY + 3);
-    sigY += 12;
+    pdf.line(leftColX, headerY + 3, leftColX + halfWidth, headerY + 3);
     
     // Company name
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(31, 41, 55);
-    pdf.text(sanitizePdfText(companySettings?.company_name || 'CipherX Solutions Inc.'), leftCol, sigY);
-    sigY += 6;
+    pdf.text(sanitizePdfText(companySettings?.company_name || 'CipherX Solutions Inc.'), leftColX, headerY + 12);
     
-    // Signer details
-    const mainCipherxSigner = cipherxSigners[0] || signatures.find(s => s.signer_role.toLowerCase() !== 'client');
-    
-    // CLIENT SECTION (right column) - Calculate position relative to left
-    let rightY = sigY - 6;
+    // === RIGHT COLUMN: CLIENT ===
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(31, 41, 55);
-    pdf.text('CLIENT', rightCol, rightY - 18);
+    pdf.text('CLIENT', rightColX, headerY);
     
     pdf.setDrawColor(200, 200, 200);
-    pdf.line(rightCol, rightY - 15, rightCol + halfWidth, rightY - 15);
+    pdf.line(rightColX, headerY + 3, rightColX + halfWidth, headerY + 3);
     
     // Client company name
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'bold');
-    pdf.text(sanitizePdfText(document.clients?.company_name || 'Client Company'), rightCol, rightY - 6);
+    pdf.text(sanitizePdfText(document.clients?.company_name || 'Client Company'), rightColX, headerY + 12);
     
-    // Signature areas - aligned for both columns
-    const signatureAreaY = sigY + 20;
+    // Signature area starts at same Y for both columns
+    const signatureAreaY = headerY + 30;
+    const lineWidth = halfWidth - 5;
     
-    // === LEFT COLUMN (Service Provider) ===
-    pdf.setDrawColor(150, 150, 150);
-    pdf.setLineWidth(0.5);
-    
-    // Draw signature if exists
-    if (mainCipherxSigner?.signed_at && mainCipherxSigner?.signature_data) {
-      try {
-        pdf.addImage(mainCipherxSigner.signature_data, 'PNG', leftCol, signatureAreaY, 60, 20, undefined, 'FAST');
-      } catch {
-        pdf.setFontSize(8);
-        pdf.setTextColor(100, 100, 100);
-        pdf.text('[Signature on file]', leftCol + 30, signatureAreaY + 10, { align: 'center' });
-      }
-    }
-    
-    // Signature line
-    pdf.line(leftCol, signatureAreaY + 25, leftCol + halfWidth - 10, signatureAreaY + 25);
-    pdf.setFontSize(8);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(100, 100, 100);
-    pdf.text('Authorized Signature', leftCol, signatureAreaY + 30);
-    
-    // Name with position below
-    const cipherxSignerName = mainCipherxSigner?.signer_name?.toUpperCase() || '';
-    const cipherxSignerPosition = mainCipherxSigner?.position || '';
-    
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(31, 41, 55);
-    pdf.text(sanitizePdfText(cipherxSignerName), leftCol, signatureAreaY + 42);
-    
-    if (cipherxSignerPosition) {
-      pdf.setFontSize(8);
-      pdf.setFont('helvetica', 'italic');
-      pdf.setTextColor(80, 80, 80);
-      pdf.text(sanitizePdfText(cipherxSignerPosition), leftCol, signatureAreaY + 47);
-    }
-    
-    // Representative line
-    pdf.line(leftCol, signatureAreaY + 52, leftCol + halfWidth - 10, signatureAreaY + 52);
-    pdf.setFontSize(8);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(100, 100, 100);
-    pdf.text('Authorized Representative', leftCol, signatureAreaY + 57);
-    
-    // Date
-    if (mainCipherxSigner?.signed_at) {
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(31, 41, 55);
-      pdf.text(format(new Date(mainCipherxSigner.signed_at), 'MMMM d, yyyy'), leftCol, signatureAreaY + 68);
-    }
-    pdf.line(leftCol, signatureAreaY + 72, leftCol + halfWidth - 10, signatureAreaY + 72);
-    pdf.setFontSize(8);
-    pdf.setTextColor(100, 100, 100);
-    pdf.text('Date', leftCol, signatureAreaY + 77);
-    
-    // === RIGHT COLUMN (Client) ===
+    // Get signer info
+    const mainCipherxSigner = cipherxSigners[0] || signatures.find(s => !s.signer_role.toLowerCase().includes('client'));
     const mainClientSigner = clientSigners[0];
     const clientSigner = mainClientSigner || (clientContact ? { 
       signer_name: clientContact.full_name, 
@@ -388,59 +330,123 @@ export const generateExportPdf = async (options: PdfGeneratorOptions): Promise<j
       signature_data: null 
     } : null);
     
+    // === LEFT COLUMN (Service Provider) Signature Block ===
+    pdf.setDrawColor(150, 150, 150);
+    pdf.setLineWidth(0.5);
+    
     // Draw signature if exists
-    if (mainClientSigner?.signed_at && mainClientSigner?.signature_data) {
+    if (mainCipherxSigner?.signed_at && mainCipherxSigner?.signature_data) {
       try {
-        pdf.addImage(mainClientSigner.signature_data, 'PNG', rightCol, signatureAreaY, 60, 20, undefined, 'FAST');
+        pdf.addImage(mainCipherxSigner.signature_data, 'PNG', leftColX, signatureAreaY, 60, 20, undefined, 'FAST');
       } catch {
         pdf.setFontSize(8);
         pdf.setTextColor(100, 100, 100);
-        pdf.text('[Signature on file]', rightCol + 30, signatureAreaY + 10, { align: 'center' });
+        pdf.text('[Signature on file]', leftColX + lineWidth / 2, signatureAreaY + 10, { align: 'center' });
+      }
+    }
+    
+    // Signature line
+    pdf.line(leftColX, signatureAreaY + 25, leftColX + lineWidth, signatureAreaY + 25);
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(100, 100, 100);
+    pdf.text('Authorized Signature', leftColX, signatureAreaY + 30);
+    
+    // Name (bold, uppercase)
+    const cipherxSignerName = mainCipherxSigner?.signer_name?.toUpperCase() || '';
+    const cipherxSignerPosition = mainCipherxSigner?.position || '';
+    
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(31, 41, 55);
+    pdf.text(sanitizePdfText(cipherxSignerName), leftColX, signatureAreaY + 42);
+    
+    // Position (italic, smaller)
+    if (cipherxSignerPosition) {
+      pdf.setFontSize(8);
+      pdf.setFont('helvetica', 'italic');
+      pdf.setTextColor(80, 80, 80);
+      pdf.text(sanitizePdfText(cipherxSignerPosition), leftColX, signatureAreaY + 47);
+    }
+    
+    // Representative line
+    pdf.setDrawColor(150, 150, 150);
+    pdf.line(leftColX, signatureAreaY + 55, leftColX + lineWidth, signatureAreaY + 55);
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(100, 100, 100);
+    pdf.text('Authorized Representative', leftColX, signatureAreaY + 60);
+    
+    // Date section
+    if (mainCipherxSigner?.signed_at) {
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(31, 41, 55);
+      pdf.text(format(new Date(mainCipherxSigner.signed_at), 'MMMM d, yyyy'), leftColX, signatureAreaY + 72);
+    }
+    pdf.setDrawColor(150, 150, 150);
+    pdf.line(leftColX, signatureAreaY + 76, leftColX + lineWidth, signatureAreaY + 76);
+    pdf.setFontSize(8);
+    pdf.setTextColor(100, 100, 100);
+    pdf.text('Date', leftColX, signatureAreaY + 81);
+    
+    // === RIGHT COLUMN (Client) Signature Block ===
+    // Draw signature if exists
+    if (mainClientSigner?.signed_at && mainClientSigner?.signature_data) {
+      try {
+        pdf.addImage(mainClientSigner.signature_data, 'PNG', rightColX, signatureAreaY, 60, 20, undefined, 'FAST');
+      } catch {
+        pdf.setFontSize(8);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text('[Signature on file]', rightColX + lineWidth / 2, signatureAreaY + 10, { align: 'center' });
       }
     }
     
     // Signature line
     pdf.setDrawColor(150, 150, 150);
-    pdf.line(rightCol, signatureAreaY + 25, rightCol + halfWidth - 10, signatureAreaY + 25);
+    pdf.line(rightColX, signatureAreaY + 25, rightColX + lineWidth, signatureAreaY + 25);
     pdf.setFontSize(8);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(100, 100, 100);
-    pdf.text('Authorized Signature', rightCol, signatureAreaY + 30);
+    pdf.text('Authorized Signature', rightColX, signatureAreaY + 30);
     
-    // Name with position below
+    // Name (bold, uppercase)
     const clientSignerName = (clientSigner?.signer_name || clientContact?.full_name || '')?.toUpperCase();
     const clientSignerPosition = (clientSigner as any)?.position || clientContact?.job_title || '';
     
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(31, 41, 55);
-    pdf.text(sanitizePdfText(clientSignerName), rightCol, signatureAreaY + 42);
+    pdf.text(sanitizePdfText(clientSignerName), rightColX, signatureAreaY + 42);
     
+    // Position (italic, smaller)
     if (clientSignerPosition) {
       pdf.setFontSize(8);
       pdf.setFont('helvetica', 'italic');
       pdf.setTextColor(80, 80, 80);
-      pdf.text(sanitizePdfText(clientSignerPosition), rightCol, signatureAreaY + 47);
+      pdf.text(sanitizePdfText(clientSignerPosition), rightColX, signatureAreaY + 47);
     }
     
     // Representative line
-    pdf.line(rightCol, signatureAreaY + 52, rightCol + halfWidth - 10, signatureAreaY + 52);
+    pdf.setDrawColor(150, 150, 150);
+    pdf.line(rightColX, signatureAreaY + 55, rightColX + lineWidth, signatureAreaY + 55);
     pdf.setFontSize(8);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(100, 100, 100);
-    pdf.text('Authorized Representative', rightCol, signatureAreaY + 57);
+    pdf.text('Authorized Representative', rightColX, signatureAreaY + 60);
     
-    // Date
+    // Date section
     if (mainClientSigner?.signed_at) {
       pdf.setFontSize(9);
       pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(31, 41, 55);
-      pdf.text(format(new Date(mainClientSigner.signed_at), 'MMMM d, yyyy'), rightCol, signatureAreaY + 68);
+      pdf.text(format(new Date(mainClientSigner.signed_at), 'MMMM d, yyyy'), rightColX, signatureAreaY + 72);
     }
-    pdf.line(rightCol, signatureAreaY + 72, rightCol + halfWidth - 10, signatureAreaY + 72);
+    pdf.setDrawColor(150, 150, 150);
+    pdf.line(rightColX, signatureAreaY + 76, rightColX + lineWidth, signatureAreaY + 76);
     pdf.setFontSize(8);
     pdf.setTextColor(100, 100, 100);
-    pdf.text('Date', rightCol, signatureAreaY + 77);
+    pdf.text('Date', rightColX, signatureAreaY + 81);
     
     addMinimalFooter(pdf, currentPageNum);
   }

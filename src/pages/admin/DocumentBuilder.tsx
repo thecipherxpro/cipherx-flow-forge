@@ -194,6 +194,7 @@ const DocumentBuilder = () => {
           signer_name: signer.name,
           signer_email: signer.email,
           signer_role: signer.role,
+          position: signer.position || null,
           is_required: signer.isRequired,
           sort_order: idx,
         }));

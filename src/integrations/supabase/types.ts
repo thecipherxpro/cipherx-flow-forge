@@ -672,6 +672,7 @@ export type Database = {
           ip_address: unknown
           is_required: boolean | null
           location_data: Json | null
+          position: string | null
           signature_data: string | null
           signed_at: string | null
           signer_email: string
@@ -688,6 +689,7 @@ export type Database = {
           ip_address?: unknown
           is_required?: boolean | null
           location_data?: Json | null
+          position?: string | null
           signature_data?: string | null
           signed_at?: string | null
           signer_email: string
@@ -704,6 +706,7 @@ export type Database = {
           ip_address?: unknown
           is_required?: boolean | null
           location_data?: Json | null
+          position?: string | null
           signature_data?: string | null
           signed_at?: string | null
           signer_email?: string
