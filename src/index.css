@@ -103,3 +103,102 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Prose styling for rich text content */
+@layer components {
+  .html-content-renderer {
+    @apply text-foreground;
+  }
+  
+  .html-content-renderer h1 {
+    @apply text-2xl font-bold mt-8 mb-4 pb-3 border-b-2 border-primary text-foreground;
+  }
+  
+  .html-content-renderer h2 {
+    @apply text-xl font-bold mt-8 mb-4 pb-2 border-b border-border text-foreground;
+  }
+  
+  .html-content-renderer h3 {
+    @apply text-lg font-semibold mt-6 mb-3 text-foreground;
+  }
+  
+  .html-content-renderer h4 {
+    @apply text-base font-semibold mt-5 mb-2 text-foreground;
+  }
+  
+  .html-content-renderer p {
+    @apply leading-relaxed my-3 text-muted-foreground;
+  }
+  
+  .html-content-renderer ul {
+    @apply my-4 ml-6 space-y-2 list-disc;
+  }
+  
+  .html-content-renderer ol {
+    @apply my-4 ml-6 space-y-2 list-decimal;
+  }
+  
+  .html-content-renderer li {
+    @apply text-muted-foreground;
+  }
+  
+  .html-content-renderer li::marker {
+    @apply text-primary;
+  }
+  
+  .html-content-renderer strong {
+    @apply font-bold text-foreground;
+  }
+  
+  .html-content-renderer em {
+    @apply italic;
+  }
+  
+  .html-content-renderer blockquote {
+    @apply my-4 pl-4 border-l-4 border-primary bg-primary/5 py-3 pr-4 rounded-r-lg text-muted-foreground italic;
+  }
+  
+  .html-content-renderer code {
+    @apply px-1.5 py-0.5 rounded bg-muted font-mono text-sm text-primary;
+  }
+  
+  .html-content-renderer pre {
+    @apply my-4 p-4 rounded-lg bg-muted overflow-x-auto;
+  }
+  
+  .html-content-renderer pre code {
+    @apply bg-transparent p-0;
+  }
+  
+  .html-content-renderer a {
+    @apply text-primary underline hover:text-primary/80;
+  }
+  
+  .html-content-renderer table {
+    @apply w-full border-collapse my-6 rounded-lg overflow-hidden border border-border;
+  }
+  
+  .html-content-renderer thead {
+    @apply bg-muted/50;
+  }
+  
+  .html-content-renderer th {
+    @apply px-4 py-3 text-left font-semibold text-sm text-foreground border-b border-border;
+  }
+  
+  .html-content-renderer td {
+    @apply px-4 py-3 text-sm text-muted-foreground border-b border-border;
+  }
+  
+  .html-content-renderer tbody tr:nth-child(even) {
+    @apply bg-muted/30;
+  }
+  
+  .html-content-renderer hr {
+    @apply my-6 border-t-2 border-border;
+  }
+  
+  .html-content-renderer img {
+    @apply max-w-full h-auto rounded-lg my-4;
+  }
+}

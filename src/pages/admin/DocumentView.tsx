@@ -54,7 +54,7 @@ import type {
   DocumentData,
   PricingData
 } from '@/lib/pdf';
-import RichTextRenderer from '@/components/RichTextRenderer';
+import HtmlContentRenderer from '@/components/HtmlContentRenderer';
 import cipherxLogo from '@/assets/cipherx-logo.png';
 
 const statusConfig: Record<string, { color: string; bgColor: string; icon: React.ReactNode; label: string }> = {
@@ -617,7 +617,7 @@ const DocumentView = () => {
                 </div>
               </div>
               <CardContent className="p-6 sm:p-8">
-                <RichTextRenderer 
+                <HtmlContentRenderer 
                   content={sections[activeSection]?.content || ''} 
                   className="text-base"
                 />
