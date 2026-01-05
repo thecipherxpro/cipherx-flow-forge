@@ -285,14 +285,14 @@ const AdminProjectForm = () => {
               <div className="space-y-2">
                 <Label htmlFor="assigned_to">Assigned To</Label>
                 <Select 
-                  value={formData.assigned_to} 
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, assigned_to: value }))}
+                  value={formData.assigned_to || '__unassigned__'} 
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, assigned_to: value === '__unassigned__' ? '' : value }))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Unassigned" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Unassigned</SelectItem>
+                    <SelectItem value="__unassigned__">Unassigned</SelectItem>
                     {staff.map(person => (
                       <SelectItem key={person.id} value={person.id}>
                         {person.full_name || person.email}
