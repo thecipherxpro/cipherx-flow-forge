@@ -47,7 +47,6 @@ import PortalSubscriptions from "@/pages/portal/Subscriptions";
 import PortalSubscriptionView from "@/pages/portal/SubscriptionView";
 
 // Public pages
-import SignDocument from "@/pages/SignDocument";
 
 import NotFound from "./pages/NotFound";
 
@@ -65,7 +64,6 @@ const App = () => (
             <Route path="/" element={<Navigate to="/auth" replace />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/pending" element={<Pending />} />
-            <Route path="/sign/:documentId" element={<SignDocument />} />
 
             {/* Admin routes */}
             <Route path="/admin" element={
