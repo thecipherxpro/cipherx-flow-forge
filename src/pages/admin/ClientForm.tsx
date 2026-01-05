@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
-import { ClientSignersManager } from '@/components/clients/ClientSignersManager';
+// ClientSignersManager removed - signers are now attached client_users
 
 const AdminClientForm = () => {
   const { id } = useParams();
@@ -334,11 +334,6 @@ const AdminClientForm = () => {
               />
             </CardContent>
           </Card>
-
-          {/* Client Signers Section - Only show when editing */}
-          {isEditing && id && (
-            <ClientSignersManager clientId={id} />
-          )}
         </div>
 
         <div className="flex justify-end gap-4 mt-6">
