@@ -92,6 +92,41 @@ const AdminProjectView = () => {
     }
   };
 
+  const toggleMilestoneComplete = async (milestone: Milestone) => {
+    const isCompleting = !milestone.completed_at;
+    const newCompletedAt = isCompleting ? new Date().toISOString() : null;
+    
+    // Optimistic update
+    setMilestones(prev => prev.map(m => 
+      m.id === milestone.id ? { ...m, completed_at: newCompletedAt } : m
+    ));
+
+    try {
+      const { error } = await supabase
+        .from('project_milestones')
+        .update({ completed_at: newCompletedAt })
+        .eq('id', milestone.id);
+
+      if (error) throw error;
+
+      toast({
+        title: isCompleting ? 'Task completed' : 'Task reopened',
+        description: milestone.name
+      });
+    } catch (error) {
+      console.error('Error updating milestone:', error);
+      // Revert on error
+      setMilestones(prev => prev.map(m => 
+        m.id === milestone.id ? { ...m, completed_at: milestone.completed_at } : m
+      ));
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to update task'
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -111,6 +146,7 @@ const AdminProjectView = () => {
       showAddTask={true}
       editPath={`/admin/projects/${id}/edit`}
       clientLinkPath="/admin/clients"
+      onToggleMilestone={toggleMilestoneComplete}
     />
   );
 };
