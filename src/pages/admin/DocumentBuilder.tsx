@@ -19,6 +19,7 @@ import { StepSignatures } from '@/components/document-builder/StepSignatures';
 import { StepReviewSend } from '@/components/document-builder/StepReviewSend';
 
 import { getTemplate, serviceTypeLabels, documentTypeLabels, type TemplateSection, type PricingItem } from '@/lib/templates/service-templates';
+import { markdownToHtml } from '@/lib/markdown-to-html';
 import type { Database, Json } from '@/integrations/supabase/types';
 
 type DocumentType = Database['public']['Enums']['document_type'];
@@ -82,7 +83,12 @@ const DocumentBuilder = () => {
     if (serviceType && documentType) {
       const template = getTemplate(documentType, serviceType);
       if (template) {
-        setSections(template.sections);
+        // Convert markdown content to HTML for the rich text editor
+        const htmlSections = template.sections.map(section => ({
+          ...section,
+          content: markdownToHtml(section.content)
+        }));
+        setSections(htmlSections);
         setPricingItems(template.defaultPricing);
         setTitle(`${documentTypeLabels[documentType]} - ${serviceTypeLabels[serviceType]}`);
       }
