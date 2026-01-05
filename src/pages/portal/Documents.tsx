@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, FileText, Eye, PenTool, Loader2 } from 'lucide-react';
+import { Search, FileText, Eye, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Document {
@@ -181,22 +181,12 @@ const PortalDocuments = () => {
                           ? `Sent ${format(new Date(doc.sent_at), 'MMM d, yyyy')}`
                           : format(new Date(doc.created_at), 'MMM d, yyyy')}
                       </span>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" asChild>
+                      <Button variant="ghost" size="sm" asChild>
                           <Link to={`/portal/documents/${doc.id}`}>
                             <Eye className="h-4 w-4 mr-1" />
                             View
                           </Link>
                         </Button>
-                        {doc.status === 'sent' && (
-                          <Button size="sm" asChild>
-                            <Link to={`/sign/${doc.id}`}>
-                              <PenTool className="h-4 w-4 mr-1" />
-                              Sign
-                            </Link>
-                          </Button>
-                        )}
-                      </div>
                     </div>
                   </div>
                 ))}
@@ -236,22 +226,12 @@ const PortalDocuments = () => {
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="sm" asChild>
+                          <Button variant="ghost" size="sm" asChild>
                               <Link to={`/portal/documents/${doc.id}`}>
                                 <Eye className="h-4 w-4 mr-1" />
                                 View
                               </Link>
                             </Button>
-                            {doc.status === 'sent' && (
-                              <Button size="sm" asChild>
-                                <Link to={`/sign/${doc.id}`}>
-                                  <PenTool className="h-4 w-4 mr-1" />
-                                  Sign
-                                </Link>
-                              </Button>
-                            )}
-                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
