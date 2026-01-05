@@ -39,10 +39,6 @@ interface UserRole {
   is_approved: boolean;
 }
 
-interface Client {
-  id: string;
-  company_name: string;
-}
 
 const roleColors: Record<string, string> = {
   admin: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400',
@@ -53,7 +49,6 @@ const roleColors: Record<string, string> = {
 const AdminUsers = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [userRoles, setUserRoles] = useState<Map<string, UserRole>>(new Map());
-  const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -69,18 +64,15 @@ const AdminUsers = () => {
 
   const fetchData = async () => {
     try {
-      const [profilesRes, rolesRes, clientsRes] = await Promise.all([
+      const [profilesRes, rolesRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('user_roles').select('user_id, role, is_approved'),
-        supabase.from('clients').select('id, company_name').order('company_name')
+        supabase.from('user_roles').select('user_id, role, is_approved')
       ]);
 
       if (profilesRes.error) throw profilesRes.error;
       if (rolesRes.error) throw rolesRes.error;
-      if (clientsRes.error) throw clientsRes.error;
 
       setProfiles(profilesRes.data || []);
-      setClients(clientsRes.data || []);
       
       const rolesMap = new Map<string, UserRole>();
       (rolesRes.data || []).forEach((r: UserRole) => {
@@ -319,7 +311,6 @@ const AdminUsers = () => {
         onOpenChange={setEditSheetOpen}
         user={selectedUser}
         currentRole={selectedUser ? userRoles.get(selectedUser.id)?.role || null : null}
-        clients={clients}
         onSave={fetchData}
       />
 

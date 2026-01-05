@@ -15,29 +15,22 @@ interface Profile {
   phone: string | null;
 }
 
-interface Client {
-  id: string;
-  company_name: string;
-}
-
 interface UserEditSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user: Profile | null;
   currentRole: string | null;
-  clients: Client[];
   onSave: () => void;
 }
 
-export function UserEditSheet({ open, onOpenChange, user, currentRole, clients, onSave }: UserEditSheetProps) {
+export function UserEditSheet({ open, onOpenChange, user, currentRole, onSave }: UserEditSheetProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
-    role: '',
-    client_id: ''
+    role: ''
   });
 
   useEffect(() => {
@@ -45,27 +38,10 @@ export function UserEditSheet({ open, onOpenChange, user, currentRole, clients, 
       setFormData({
         full_name: user.full_name || '',
         phone: user.phone || '',
-        role: currentRole || '',
-        client_id: ''
+        role: currentRole || ''
       });
-      // Fetch associated client if role is client
-      if (currentRole === 'client') {
-        fetchClientAssignment(user.id);
-      }
     }
   }, [user, currentRole]);
-
-  const fetchClientAssignment = async (userId: string) => {
-    const { data } = await supabase
-      .from('client_users')
-      .select('client_id')
-      .eq('user_id', userId)
-      .single();
-    
-    if (data) {
-      setFormData(prev => ({ ...prev, client_id: data.client_id }));
-    }
-  };
 
   const handleSave = async () => {
     if (!user) return;
@@ -98,13 +74,6 @@ export function UserEditSheet({ open, onOpenChange, user, currentRole, clients, 
         }
       }
 
-      // Update client assignment if role is client
-      if (formData.role === 'client' && formData.client_id) {
-        await supabase.from('client_users').delete().eq('user_id', user.id);
-        await supabase.from('client_users').insert({ user_id: user.id, client_id: formData.client_id });
-      } else if (formData.role !== 'client') {
-        await supabase.from('client_users').delete().eq('user_id', user.id);
-      }
 
       toast({ title: 'User updated successfully' });
       onSave();
@@ -209,32 +178,6 @@ export function UserEditSheet({ open, onOpenChange, user, currentRole, clients, 
             </Select>
           </div>
 
-          {/* Client Assignment (only if role is client) */}
-          {formData.role === 'client' && (
-            <div className="space-y-2">
-              <Label>Associated Client</Label>
-              <Select 
-                value={formData.client_id} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, client_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a client" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map(client => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.company_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {clients.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  No clients available. Create a client first.
-                </p>
-              )}
-            </div>
-          )}
 
           {/* Password Reset */}
           <div className="space-y-2">
