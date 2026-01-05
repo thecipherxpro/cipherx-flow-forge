@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import ProjectViewContent from '@/components/projects/ProjectViewContent';
+import AddTaskSheet from '@/components/projects/AddTaskSheet';
 
 interface ProjectData {
   id: string;
@@ -42,6 +43,8 @@ const AdminProjectView = () => {
   const [project, setProject] = useState<ProjectData | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [isAddingTask, setIsAddingTask] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -127,6 +130,48 @@ const AdminProjectView = () => {
     }
   };
 
+  const handleAddTask = async (task: { name: string; description: string; due_date: string | null }) => {
+    if (!id) return;
+    setIsAddingTask(true);
+
+    try {
+      const maxSortOrder = milestones.length > 0 
+        ? Math.max(...milestones.map(m => m.sort_order || 0)) 
+        : 0;
+
+      const { data, error } = await supabase
+        .from('project_milestones')
+        .insert({
+          project_id: id,
+          name: task.name,
+          description: task.description || null,
+          due_date: task.due_date,
+          sort_order: maxSortOrder + 1
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setMilestones(prev => [...prev, data]);
+      setAddTaskOpen(false);
+      
+      toast({
+        title: 'Task added',
+        description: task.name
+      });
+    } catch (error) {
+      console.error('Error adding task:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to add task'
+      });
+    } finally {
+      setIsAddingTask(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -138,16 +183,25 @@ const AdminProjectView = () => {
   if (!project) return null;
 
   return (
-    <ProjectViewContent
-      project={project}
-      milestones={milestones}
-      onBack={() => navigate('/admin/projects')}
-      showEditButton={true}
-      showAddTask={true}
-      editPath={`/admin/projects/${id}/edit`}
-      clientLinkPath="/admin/clients"
-      onToggleMilestone={toggleMilestoneComplete}
-    />
+    <>
+      <ProjectViewContent
+        project={project}
+        milestones={milestones}
+        onBack={() => navigate('/admin/projects')}
+        showEditButton={true}
+        showAddTask={true}
+        editPath={`/admin/projects/${id}/edit`}
+        clientLinkPath="/admin/clients"
+        onToggleMilestone={toggleMilestoneComplete}
+        onAddTaskClick={() => setAddTaskOpen(true)}
+      />
+      <AddTaskSheet
+        open={addTaskOpen}
+        onOpenChange={setAddTaskOpen}
+        onAddTask={handleAddTask}
+        isLoading={isAddingTask}
+      />
+    </>
   );
 };
 
