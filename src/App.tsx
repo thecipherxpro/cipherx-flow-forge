@@ -26,6 +26,7 @@ import AdminProjectForm from "@/pages/admin/ProjectForm";
 import AdminDocuments from "@/pages/admin/Documents";
 import AdminDocumentBuilder from "@/pages/admin/DocumentBuilder";
 import AdminDocumentView from "@/pages/admin/DocumentView";
+import AdminDocumentEdit from "@/pages/admin/DocumentEdit";
 import AdminSubscriptions from "@/pages/admin/Subscriptions";
 import AdminSubscriptionView from "@/pages/admin/SubscriptionView";
 import AdminSubscriptionForm from "@/pages/admin/SubscriptionForm";
@@ -84,6 +85,7 @@ const App = () => (
               <Route path="documents" element={<AdminDocuments />} />
               <Route path="documents/new" element={<AdminDocumentBuilder />} />
               <Route path="documents/:id" element={<AdminDocumentView />} />
+              <Route path="documents/:id/edit" element={<AdminDocumentEdit />} />
               <Route path="subscriptions" element={<AdminSubscriptions />} />
               <Route path="subscriptions/new" element={<AdminSubscriptionForm />} />
               <Route path="subscriptions/:id" element={<AdminSubscriptionView />} />
