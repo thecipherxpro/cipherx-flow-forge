@@ -32,6 +32,7 @@ const Auth = () => {
   const [fullName, setFullName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; confirmPassword?: string; name?: string }>({});
+  const [signupSuccess, setSignupSuccess] = useState(false);
 
   useEffect(() => {
     if (user && !isLoading) {
