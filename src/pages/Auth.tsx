@@ -50,7 +50,7 @@ const Auth = () => {
   }, [user, userRole, isLoading, navigate]);
 
   const validateForm = (isSignUp: boolean) => {
-    const newErrors: { email?: string; password?: string; name?: string } = {};
+    const newErrors: { email?: string; password?: string; confirmPassword?: string; name?: string } = {};
     
     try {
       emailSchema.parse(email);
