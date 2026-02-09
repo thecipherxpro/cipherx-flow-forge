@@ -31,6 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<AppRole | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUserRole = async (userId: string): Promise<{ role: AppRole | null; isApproved: boolean }> => {
