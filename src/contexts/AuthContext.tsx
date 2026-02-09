@@ -71,6 +71,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { role: null, isApproved: false };
     }
   };
+  const fetchOnboardingStatus = async (userId: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('onboarding_completed')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching onboarding status:', error);
+        return false;
+      }
+      return data?.onboarding_completed ?? false;
+    } catch (err) {
+      console.error('Error in fetchOnboardingStatus:', err);
+      return false;
+    }
+  };
 
   const fetchClientId = async (userId: string) => {
     try {
