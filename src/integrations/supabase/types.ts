@@ -826,6 +826,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      complete_client_onboarding: {
+        Args: {
+          _address_line1?: string
+          _city?: string
+          _company_name: string
+          _contact_email?: string
+          _contact_name?: string
+          _country?: string
+          _industry?: string
+          _phone?: string
+          _postal_code?: string
+          _province?: string
+          _website?: string
+        }
+        Returns: string
+      }
       get_user_client_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {

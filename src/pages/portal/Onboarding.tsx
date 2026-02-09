@@ -63,46 +63,21 @@ const Onboarding = () => {
 
     setIsSubmitting(true);
     try {
-      // Create client record
-      const { data: clientData, error: clientError } = await supabase
-        .from('clients')
-        .insert({
-          company_name: form.companyName.trim(),
-          industry: form.industry || null,
-          website: form.website || null,
-          phone: form.phone || null,
-          contact_name: form.contactName || null,
-          contact_email: form.contactEmail || null,
-          address_line1: form.addressLine1 || null,
-          city: form.city || null,
-          province: form.province || null,
-          postal_code: form.postalCode || null,
-          country: form.country || null,
-          created_by: user.id,
-        })
-        .select('id')
-        .single();
+      const { error } = await supabase.rpc('complete_client_onboarding', {
+        _company_name: form.companyName.trim(),
+        _industry: form.industry || null,
+        _website: form.website || null,
+        _phone: form.phone || null,
+        _contact_name: form.contactName || null,
+        _contact_email: form.contactEmail || null,
+        _address_line1: form.addressLine1 || null,
+        _city: form.city || null,
+        _province: form.province || null,
+        _postal_code: form.postalCode || null,
+        _country: form.country || null,
+      });
 
-      if (clientError) throw clientError;
-
-      // Link user to client
-      const { error: linkError } = await supabase
-        .from('client_users')
-        .insert({
-          user_id: user.id,
-          client_id: clientData.id,
-          can_sign_documents: true,
-        });
-
-      if (linkError) throw linkError;
-
-      // Mark onboarding complete
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ onboarding_completed: true })
-        .eq('id', user.id);
-
-      if (profileError) throw profileError;
+      if (error) throw error;
 
       toast({ title: 'Welcome aboard!', description: 'Your profile has been set up successfully.' });
       
