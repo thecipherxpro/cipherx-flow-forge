@@ -228,36 +228,6 @@ const Auth = () => {
           <TabsContent value="signup">
             <form onSubmit={handleSignUp}>
               <CardContent className="space-y-4">
-                {/* Role Toggle */}
-                <div className="space-y-2">
-                  <Label>I am signing up as</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      type="button"
-                      variant={signupRole === 'client' ? 'default' : 'outline'}
-                      className="w-full"
-                      onClick={() => setSignupRole('client')}
-                    >
-                      <Briefcase className="h-4 w-4 mr-2" />
-                      Client
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={signupRole === 'staff' ? 'default' : 'outline'}
-                      className="w-full"
-                      onClick={() => setSignupRole('staff')}
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      Staff
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {signupRole === 'client' 
-                      ? 'Sign up to access your client portal and view your projects, documents, and subscriptions.'
-                      : 'Sign up as a staff member to manage clients and projects.'}
-                  </p>
-                </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">Full Name</Label>
                   <div className="relative">
