@@ -143,22 +143,25 @@ const AdminLayout = () => {
 
               <nav className={cn("p-3 space-y-1", collapsed && "lg:px-2")}>
                 {sidebarLinks.map((link) => {
-                  const linkContent = (
+                  const navLink = (
                     <NavLink
-                      key={link.to}
                       to={link.to}
                       end={link.end}
                       onClick={() => setSidebarOpen(false)}
                       className={({ isActive }) => cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
-                        collapsed && "lg:justify-center lg:px-0",
+                        "flex items-center rounded-lg py-2.5 text-sm transition-colors",
+                        collapsed ? "lg:justify-center lg:px-2 gap-0 px-3 gap-3" : "gap-3 px-3",
                         isActive 
                           ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                           : "text-sidebar-foreground hover:bg-sidebar-accent/50"
                       )}
                     >
                       <link.icon className="h-4 w-4 flex-shrink-0" />
-                      <span className={cn("truncate", collapsed && "lg:hidden")}>{link.label}</span>
+                      {collapsed ? (
+                        <span className="truncate lg:hidden">{link.label}</span>
+                      ) : (
+                        <span className="truncate">{link.label}</span>
+                      )}
                     </NavLink>
                   );
 
@@ -166,7 +169,7 @@ const AdminLayout = () => {
                     return (
                       <Tooltip key={link.to}>
                         <TooltipTrigger asChild>
-                          {linkContent}
+                          {navLink}
                         </TooltipTrigger>
                         <TooltipContent side="right" className="hidden lg:block">
                           {link.label}
@@ -175,7 +178,7 @@ const AdminLayout = () => {
                     );
                   }
 
-                  return linkContent;
+                  return <div key={link.to}>{navLink}</div>;
                 })}
               </nav>
 
