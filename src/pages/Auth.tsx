@@ -150,7 +150,7 @@ const Auth = () => {
     setIsSubmitting(false);
     toast({
       title: 'Account created!',
-      description: 'Please wait for an administrator to assign your client profile.'
+      description: 'Please check your email to verify your account, then sign in to complete setup.'
     });
   };
 
