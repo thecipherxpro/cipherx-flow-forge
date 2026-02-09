@@ -648,7 +648,7 @@ const DocumentView = () => {
                     </button>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             </Card>
           )}
 
