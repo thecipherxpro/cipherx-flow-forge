@@ -274,12 +274,15 @@ const Auth = () => {
                     />
                   </div>
                   {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                  <p className="text-xs text-muted-foreground">
+                    Min 10 characters with uppercase, lowercase, number & special character.
+                  </p>
                 </div>
               </CardContent>
               
               <CardFooter>
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? 'Creating account...' : `Create ${signupRole === 'client' ? 'Client' : 'Staff'} Account`}
+                  {isSubmitting ? 'Creating account...' : 'Create Account'}
                 </Button>
               </CardFooter>
             </form>
