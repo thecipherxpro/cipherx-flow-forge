@@ -13,7 +13,6 @@ import ClientLayout from "@/components/layouts/ClientLayout";
 
 // Auth pages
 import Auth from "@/pages/Auth";
-import Pending from "@/pages/Pending";
 
 // Admin pages
 import AdminDashboard from "@/pages/admin/Dashboard";

@@ -9,7 +9,6 @@ import {
   FileText, 
   CreditCard, 
   ArrowRight,
-  Clock,
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
