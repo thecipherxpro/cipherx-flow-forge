@@ -279,8 +279,24 @@ const Auth = () => {
                   </div>
                   {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
                   <p className="text-xs text-muted-foreground">
-                    Min 10 characters with uppercase, lowercase, number & special character.
+                    Min 8 characters with uppercase, lowercase, number & special character.
                   </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-confirm-password">Confirm Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="signup-confirm-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
                 </div>
               </CardContent>
               
