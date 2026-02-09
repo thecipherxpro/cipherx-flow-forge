@@ -12,10 +12,13 @@ import cipherxLogo from '@/assets/cipherx-logo.png';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 
-type SignupRole = 'staff' | 'client';
-
 const emailSchema = z.string().email('Please enter a valid email address');
-const passwordSchema = z.string().min(8, 'Password must be at least 8 characters');
+const passwordSchema = z.string()
+  .min(10, 'Password must be at least 10 characters')
+  .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+  .regex(/[a-z]/, 'Must contain at least one lowercase letter')
+  .regex(/[0-9]/, 'Must contain at least one number')
+  .regex(/[^A-Za-z0-9]/, 'Must contain at least one special character');
 const nameSchema = z.string().min(2, 'Name must be at least 2 characters');
 
 const Auth = () => {
