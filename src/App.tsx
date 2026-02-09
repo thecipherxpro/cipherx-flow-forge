@@ -45,6 +45,7 @@ import PortalDocuments from "@/pages/portal/Documents";
 import PortalDocumentView from "@/pages/portal/DocumentView";
 import PortalSubscriptions from "@/pages/portal/Subscriptions";
 import PortalSubscriptionView from "@/pages/portal/SubscriptionView";
+import PortalOnboarding from "@/pages/portal/Onboarding";
 
 // Public pages
 
