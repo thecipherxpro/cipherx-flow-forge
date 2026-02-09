@@ -146,9 +146,7 @@ const Auth = () => {
     setIsSubmitting(false);
     toast({
       title: 'Account created!',
-      description: signupRole === 'client' 
-        ? 'Please wait for an administrator to assign your client profile.'
-        : 'Please wait for an administrator to approve your staff account.'
+      description: 'Please wait for an administrator to assign your client profile.'
     });
   };
 
