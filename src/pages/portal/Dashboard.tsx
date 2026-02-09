@@ -9,7 +9,6 @@ import {
   FileText, 
   CreditCard, 
   ArrowRight,
-  Clock,
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
@@ -89,39 +88,9 @@ const PortalDashboard = () => {
     }
   ];
 
-  // Empty state when no client profile assigned
-  if (!clientId && !isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
-        <div className="p-6 rounded-full bg-muted">
-          <Clock className="h-16 w-16 text-muted-foreground" />
-        </div>
-        <div className="text-center space-y-2 max-w-md">
-          <h1 className="text-2xl font-bold tracking-tight">Awaiting Profile Assignment</h1>
-          <p className="text-muted-foreground">
-            Your account has been created successfully. An administrator will assign your client profile shortly.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Once your profile is assigned, you'll be able to view your projects, documents, and subscriptions.
-          </p>
-        </div>
-        <Card className="w-full max-w-sm">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/20">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Pending Admin Action</p>
-                <p className="text-xs text-muted-foreground">
-                  Please check back later or contact support
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  // If still loading, show nothing extra
+  if (isLoading) {
+    return null;
   }
 
   return (

@@ -9,6 +9,7 @@ interface AuthContextType {
   session: Session | null;
   userRole: AppRole | null;
   clientId: string | null;
+  onboardingCompleted: boolean;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
@@ -30,6 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<AppRole | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUserRole = async (userId: string): Promise<{ role: AppRole | null; isApproved: boolean }> => {
@@ -69,6 +71,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { role: null, isApproved: false };
     }
   };
+  const fetchOnboardingStatus = async (userId: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('onboarding_completed')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching onboarding status:', error);
+        return false;
+      }
+      return data?.onboarding_completed ?? false;
+    } catch (err) {
+      console.error('Error in fetchOnboardingStatus:', err);
+      return false;
+    }
+  };
 
   const fetchClientId = async (userId: string) => {
     try {
@@ -104,10 +124,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUserRole(role);
             
             if (role === 'client') {
-              const cId = await fetchClientId(session.user.id);
+              const [cId, onboarded] = await Promise.all([
+                fetchClientId(session.user.id),
+                fetchOnboardingStatus(session.user.id),
+              ]);
               setClientId(cId);
+              setOnboardingCompleted(onboarded);
             } else {
               setClientId(null);
+              setOnboardingCompleted(true);
             }
             setIsLoading(false);
           }, 0);
@@ -129,8 +154,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserRole(role);
         
         if (role === 'client') {
-          const cId = await fetchClientId(session.user.id);
+          const [cId, onboarded] = await Promise.all([
+            fetchClientId(session.user.id),
+            fetchOnboardingStatus(session.user.id),
+          ]);
           setClientId(cId);
+          setOnboardingCompleted(onboarded);
+        } else {
+          setOnboardingCompleted(true);
         }
       }
       setIsLoading(false);
@@ -164,6 +195,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
     setUserRole(null);
     setClientId(null);
+    setOnboardingCompleted(false);
   };
 
   return (
@@ -172,6 +204,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       session,
       userRole,
       clientId,
+      onboardingCompleted,
       isLoading,
       signIn,
       signUp,

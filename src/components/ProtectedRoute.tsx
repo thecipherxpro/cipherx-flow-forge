@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
-  const { user, userRole, isLoading } = useAuth();
+  const { user, userRole, onboardingCompleted, isLoading } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -26,19 +26,15 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  if (!userRole) {
-    return <Navigate to="/pending" replace />;
+  if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
+    if (userRole === 'admin') return <Navigate to="/admin" replace />;
+    if (userRole === 'staff') return <Navigate to="/staff" replace />;
+    if (userRole === 'client') return <Navigate to="/portal" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(userRole)) {
-    // Redirect to the appropriate portal based on user's role
-    if (userRole === 'admin') {
-      return <Navigate to="/admin" replace />;
-    } else if (userRole === 'staff') {
-      return <Navigate to="/staff" replace />;
-    } else if (userRole === 'client') {
-      return <Navigate to="/portal" replace />;
-    }
+  // Redirect clients who haven't completed onboarding (but not if already on onboarding page)
+  if (userRole === 'client' && !onboardingCompleted && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return <>{children}</>;

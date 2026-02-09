@@ -13,7 +13,6 @@ import ClientLayout from "@/components/layouts/ClientLayout";
 
 // Auth pages
 import Auth from "@/pages/Auth";
-import Pending from "@/pages/Pending";
 
 // Admin pages
 import AdminDashboard from "@/pages/admin/Dashboard";
@@ -45,6 +44,7 @@ import PortalDocuments from "@/pages/portal/Documents";
 import PortalDocumentView from "@/pages/portal/DocumentView";
 import PortalSubscriptions from "@/pages/portal/Subscriptions";
 import PortalSubscriptionView from "@/pages/portal/SubscriptionView";
+import PortalOnboarding from "@/pages/portal/Onboarding";
 
 // Public pages
 
@@ -63,7 +63,11 @@ const App = () => (
             {/* Public routes */}
             <Route path="/" element={<Navigate to="/auth" replace />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/pending" element={<Pending />} />
+            <Route path="/onboarding" element={
+              <ProtectedRoute allowedRoles={['client']}>
+                <PortalOnboarding />
+              </ProtectedRoute>
+            } />
 
             {/* Admin routes */}
             <Route path="/admin" element={

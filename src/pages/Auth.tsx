@@ -35,16 +35,12 @@ const Auth = () => {
 
   useEffect(() => {
     if (user && !isLoading) {
-      // Redirect based on role
       if (userRole === 'admin') {
         navigate('/admin');
       } else if (userRole === 'staff') {
         navigate('/staff');
       } else if (userRole === 'client') {
         navigate('/portal');
-      } else {
-        // No role assigned yet, redirect to a pending page
-        navigate('/pending');
       }
     }
   }, [user, userRole, isLoading, navigate]);
@@ -139,7 +135,7 @@ const Auth = () => {
         .insert({
           user_id: data.user.id,
           role: 'client' as const,
-          is_approved: false
+          is_approved: true
         });
 
       if (roleError) {
@@ -150,7 +146,7 @@ const Auth = () => {
     setIsSubmitting(false);
     toast({
       title: 'Account created!',
-      description: 'Please wait for an administrator to assign your client profile.'
+      description: 'Please check your email to verify your account, then sign in to complete setup.'
     });
   };
 
