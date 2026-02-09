@@ -64,7 +64,11 @@ const App = () => (
             {/* Public routes */}
             <Route path="/" element={<Navigate to="/auth" replace />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/pending" element={<Pending />} />
+            <Route path="/onboarding" element={
+              <ProtectedRoute allowedRoles={['client']}>
+                <PortalOnboarding />
+              </ProtectedRoute>
+            } />
 
             {/* Admin routes */}
             <Route path="/admin" element={

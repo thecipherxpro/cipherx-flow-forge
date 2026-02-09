@@ -35,16 +35,12 @@ const Auth = () => {
 
   useEffect(() => {
     if (user && !isLoading) {
-      // Redirect based on role
       if (userRole === 'admin') {
         navigate('/admin');
       } else if (userRole === 'staff') {
         navigate('/staff');
       } else if (userRole === 'client') {
         navigate('/portal');
-      } else {
-        // No role assigned yet, redirect to a pending page
-        navigate('/pending');
       }
     }
   }, [user, userRole, isLoading, navigate]);
