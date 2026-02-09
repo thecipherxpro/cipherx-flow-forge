@@ -76,6 +76,9 @@ const Auth = () => {
           newErrors.name = e.errors[0].message;
         }
       }
+      if (password !== confirmPassword) {
+        newErrors.confirmPassword = 'Passwords do not match';
+      }
     }
     
     setErrors(newErrors);
