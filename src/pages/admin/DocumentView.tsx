@@ -626,7 +626,7 @@ const DocumentView = () => {
                   Contents
                 </h3>
               </div>
-              <ScrollArea className="max-h-[300px]">
+              <div>
                 <div className="p-2">
                   {sections.map((section, index) => (
                     <button
