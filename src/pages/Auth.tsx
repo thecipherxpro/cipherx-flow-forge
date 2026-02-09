@@ -134,7 +134,7 @@ const Auth = () => {
         .from('user_roles')
         .insert({
           user_id: data.user.id,
-          role: signupRole,
+          role: 'client' as const,
           is_approved: false
         });
 
