@@ -129,20 +129,7 @@ const Auth = () => {
       return;
     }
 
-    // Create user role after successful signup
-    if (data.user) {
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .insert({
-          user_id: data.user.id,
-          role: 'client' as const,
-          is_approved: true
-        });
-
-      if (roleError) {
-        console.error('Error creating user role:', roleError);
-      }
-    }
+    // Role is now auto-assigned via database trigger
 
     setIsSubmitting(false);
     setSignupSuccess(true);
