@@ -204,6 +204,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       session,
       userRole,
       clientId,
+      onboardingCompleted,
       isLoading,
       signIn,
       signUp,
