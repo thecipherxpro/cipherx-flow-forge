@@ -7,15 +7,18 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Lock, Mail, User, Users, Briefcase } from 'lucide-react';
+import { Lock, Mail, User } from 'lucide-react';
 import cipherxLogo from '@/assets/cipherx-logo.png';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 
-type SignupRole = 'staff' | 'client';
-
 const emailSchema = z.string().email('Please enter a valid email address');
-const passwordSchema = z.string().min(8, 'Password must be at least 8 characters');
+const passwordSchema = z.string()
+  .min(10, 'Password must be at least 10 characters')
+  .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+  .regex(/[a-z]/, 'Must contain at least one lowercase letter')
+  .regex(/[0-9]/, 'Must contain at least one number')
+  .regex(/[^A-Za-z0-9]/, 'Must contain at least one special character');
 const nameSchema = z.string().min(2, 'Name must be at least 2 characters');
 
 const Auth = () => {
@@ -26,7 +29,6 @@ const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [signupRole, setSignupRole] = useState<SignupRole>('client');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; name?: string }>({});
 
@@ -132,7 +134,7 @@ const Auth = () => {
         .from('user_roles')
         .insert({
           user_id: data.user.id,
-          role: signupRole,
+          role: 'client' as const,
           is_approved: false
         });
 
@@ -144,9 +146,7 @@ const Auth = () => {
     setIsSubmitting(false);
     toast({
       title: 'Account created!',
-      description: signupRole === 'client' 
-        ? 'Please wait for an administrator to assign your client profile.'
-        : 'Please wait for an administrator to approve your staff account.'
+      description: 'Please wait for an administrator to assign your client profile.'
     });
   };
 
@@ -228,36 +228,6 @@ const Auth = () => {
           <TabsContent value="signup">
             <form onSubmit={handleSignUp}>
               <CardContent className="space-y-4">
-                {/* Role Toggle */}
-                <div className="space-y-2">
-                  <Label>I am signing up as</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      type="button"
-                      variant={signupRole === 'client' ? 'default' : 'outline'}
-                      className="w-full"
-                      onClick={() => setSignupRole('client')}
-                    >
-                      <Briefcase className="h-4 w-4 mr-2" />
-                      Client
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={signupRole === 'staff' ? 'default' : 'outline'}
-                      className="w-full"
-                      onClick={() => setSignupRole('staff')}
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      Staff
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {signupRole === 'client' 
-                      ? 'Sign up to access your client portal and view your projects, documents, and subscriptions.'
-                      : 'Sign up as a staff member to manage clients and projects.'}
-                  </p>
-                </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">Full Name</Label>
                   <div className="relative">
@@ -304,12 +274,15 @@ const Auth = () => {
                     />
                   </div>
                   {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                  <p className="text-xs text-muted-foreground">
+                    Min 10 characters with uppercase, lowercase, number & special character.
+                  </p>
                 </div>
               </CardContent>
               
               <CardFooter>
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? 'Creating account...' : `Create ${signupRole === 'client' ? 'Client' : 'Staff'} Account`}
+                  {isSubmitting ? 'Creating account...' : 'Create Account'}
                 </Button>
               </CardFooter>
             </form>
