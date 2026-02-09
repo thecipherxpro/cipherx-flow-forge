@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Lock, Mail, User } from 'lucide-react';
+import { Lock, Mail, User, CheckCircle2, ArrowRight } from 'lucide-react';
 import cipherxLogo from '@/assets/cipherx-logo.png';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
