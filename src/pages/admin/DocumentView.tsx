@@ -566,7 +566,7 @@ const DocumentView = () => {
 
       <div className="grid lg:grid-cols-[260px_1fr] gap-6" ref={printRef}>
         {/* Sidebar Navigation */}
-        <div className="space-y-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+        <div className="space-y-4">
           {/* Quick Stats */}
           <Card className="overflow-hidden">
             <div className="p-4 bg-muted/50 border-b">
@@ -626,7 +626,7 @@ const DocumentView = () => {
                   Contents
                 </h3>
               </div>
-              <ScrollArea className="max-h-[300px]">
+              <div>
                 <div className="p-2">
                   {sections.map((section, index) => (
                     <button
@@ -648,7 +648,7 @@ const DocumentView = () => {
                     </button>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             </Card>
           )}
 
