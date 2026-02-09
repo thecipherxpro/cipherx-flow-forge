@@ -145,10 +145,7 @@ const Auth = () => {
     }
 
     setIsSubmitting(false);
-    toast({
-      title: 'Account created!',
-      description: 'Please check your email to verify your account, then sign in to complete setup.'
-    });
+    setSignupSuccess(true);
   };
 
   if (isLoading) {
