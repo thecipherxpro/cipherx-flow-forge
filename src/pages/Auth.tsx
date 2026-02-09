@@ -148,13 +148,41 @@ const Auth = () => {
     setSignupSuccess(true);
   };
 
-  if (isLoading) {
+  if (isLoading && !signupSuccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse flex flex-col items-center gap-4">
           <img src={cipherxLogo} alt="CipherX Logo" className="h-12 w-12 object-contain" />
           <p className="text-muted-foreground">Loading...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (signupSuccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardHeader>
+            <div className="flex justify-center mb-4">
+              <div className="p-4 rounded-full bg-primary/10">
+                <CheckCircle2 className="h-12 w-12 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Account Created!</CardTitle>
+            <CardDescription className="text-base">
+              Welcome to CipherX Solutions, {fullName}!
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Your account has been set up successfully. Let's get your profile ready.
+            </p>
+            <Button className="w-full" onClick={() => navigate('/onboarding')}>
+              Continue to Setup <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
