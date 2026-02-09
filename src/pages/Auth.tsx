@@ -14,7 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 const emailSchema = z.string().email('Please enter a valid email address');
 const passwordSchema = z.string()
-  .min(10, 'Password must be at least 10 characters')
+  .min(8, 'Password must be at least 8 characters')
   .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
   .regex(/[a-z]/, 'Must contain at least one lowercase letter')
   .regex(/[0-9]/, 'Must contain at least one number')
@@ -28,9 +28,10 @@ const Auth = () => {
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string; name?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string; confirmPassword?: string; name?: string }>({});
 
   useEffect(() => {
     if (user && !isLoading) {
@@ -49,7 +50,7 @@ const Auth = () => {
   }, [user, userRole, isLoading, navigate]);
 
   const validateForm = (isSignUp: boolean) => {
-    const newErrors: { email?: string; password?: string; name?: string } = {};
+    const newErrors: { email?: string; password?: string; confirmPassword?: string; name?: string } = {};
     
     try {
       emailSchema.parse(email);
@@ -74,6 +75,9 @@ const Auth = () => {
         if (e instanceof z.ZodError) {
           newErrors.name = e.errors[0].message;
         }
+      }
+      if (password !== confirmPassword) {
+        newErrors.confirmPassword = 'Passwords do not match';
       }
     }
     
@@ -275,8 +279,24 @@ const Auth = () => {
                   </div>
                   {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
                   <p className="text-xs text-muted-foreground">
-                    Min 10 characters with uppercase, lowercase, number & special character.
+                    Min 8 characters with uppercase, lowercase, number & special character.
                   </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-confirm-password">Confirm Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="signup-confirm-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
                 </div>
               </CardContent>
               
