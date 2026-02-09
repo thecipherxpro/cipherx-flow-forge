@@ -124,10 +124,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUserRole(role);
             
             if (role === 'client') {
-              const cId = await fetchClientId(session.user.id);
+              const [cId, onboarded] = await Promise.all([
+                fetchClientId(session.user.id),
+                fetchOnboardingStatus(session.user.id),
+              ]);
               setClientId(cId);
+              setOnboardingCompleted(onboarded);
             } else {
               setClientId(null);
+              setOnboardingCompleted(true);
             }
             setIsLoading(false);
           }, 0);
