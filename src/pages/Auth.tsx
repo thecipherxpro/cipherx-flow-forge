@@ -139,7 +139,7 @@ const Auth = () => {
         .insert({
           user_id: data.user.id,
           role: 'client' as const,
-          is_approved: false
+          is_approved: true
         });
 
       if (roleError) {
