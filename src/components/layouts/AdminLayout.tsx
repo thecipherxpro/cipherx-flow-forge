@@ -28,15 +28,13 @@ import cipherxLogo from '@/assets/cipherx-logo.png';
 
 const navLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/admin/clients', icon: Building2, label: 'Clients' },
   { to: '/admin/projects', icon: FolderKanban, label: 'Projects' },
-  { to: '/admin/documents', icon: FileText, label: 'Documents' },
-  { to: '/admin/subscriptions', icon: CreditCard, label: 'Subscriptions' },
+  { to: '/admin/clients', icon: Building2, label: 'Clients' },
   { to: '/admin/users', icon: UserCog, label: 'Users' },
-  { to: '/admin/settings', icon: Settings, label: 'Settings' },
+  { to: '/admin/documents', icon: FileText, label: 'Documents' },
+  { to: '/admin/subscriptions', icon: CreditCard, label: 'Invoices' },
 ];
 
-// Mobile bottom dock shows first 4 + "More" menu for the rest
 const MOBILE_VISIBLE = 4;
 
 const AdminLayout = () => {
@@ -66,70 +64,79 @@ const AdminLayout = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* ─── Desktop Top Header Dock ─── */}
-      <header className="sticky top-0 z-40 hidden md:block border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-14 items-center gap-4 px-4 lg:px-6">
-          {/* Logo */}
-          <NavLink to="/admin" className="flex items-center gap-2 shrink-0">
-            <img src={cipherxLogo} alt="CipherX Logo" className="h-6 w-6 object-contain" />
-            <span className="font-semibold text-foreground">CipherX</span>
-          </NavLink>
+      <header className="sticky top-0 z-40 hidden md:block">
+        <div className="mx-4 lg:mx-6 mt-3">
+          <div className="flex h-12 items-center gap-1 rounded-full border bg-background px-4 shadow-sm">
+            {/* Logo */}
+            <NavLink to="/admin" className="flex items-center gap-2 shrink-0 mr-2">
+              <img src={cipherxLogo} alt="CipherX Logo" className="h-5 w-5 object-contain" />
+              <span className="font-semibold text-foreground text-sm">CipherX</span>
+            </NavLink>
 
-          {/* Nav Links */}
-          <nav className="flex items-center gap-1 flex-1">
-            {navLinks.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                end={link.end}
-                className={({ isActive }) => cn(
-                  "relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
-                  isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                )}
-              >
-                {({ isActive }) => (
-                  <>
-                    <link.icon className="h-4 w-4" />
-                    <span className="hidden lg:inline">{link.label}</span>
-                    {isActive && (
-                      <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-primary animate-scale-in" />
-                    )}
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </nav>
+            <div className="h-5 w-px bg-border mx-1" />
 
-          {/* User Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-9 gap-2 px-2">
-                <Avatar className="h-7 w-7">
-                  <AvatarFallback className="text-xs bg-primary/10 text-primary">{userInitials}</AvatarFallback>
-                </Avatar>
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 animate-scale-in">
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">{user?.user_metadata?.full_name || 'Admin User'}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            {/* Nav Links */}
+            <nav className="flex items-center gap-0.5 flex-1">
+              {navLinks.map((link) => (
+                <NavLink
+                  key={link.to}
+                  to={link.to}
+                  end={link.end}
+                  className={({ isActive }) => cn(
+                    "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200",
+                    isActive
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <link.icon className="h-4 w-4" />
+                  <span className="hidden lg:inline">{link.label}</span>
+                </NavLink>
+              ))}
+            </nav>
+
+            {/* Settings + User */}
+            <NavLink
+              to="/admin/settings"
+              className={({ isActive }) => cn(
+                "rounded-full p-2 transition-colors",
+                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Settings className="h-4 w-4" />
+            </NavLink>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 gap-1.5 px-1.5 rounded-full">
+                  <Avatar className="h-7 w-7">
+                    <AvatarFallback className="text-xs bg-primary text-primary-foreground font-semibold">
+                      {userInitials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm font-medium">{user?.user_metadata?.full_name || 'Admin User'}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </header>
 
       {/* ─── Main Content ─── */}
-      <main className="min-h-[calc(100vh-3.5rem)] md:min-h-[calc(100vh-3.5rem)] pb-20 md:pb-0 w-full">
+      <main className="pb-20 md:pb-0 w-full">
         <div className="p-3 sm:p-4 lg:p-6 max-w-full overflow-x-hidden">
           <Outlet />
         </div>
@@ -145,9 +152,7 @@ const AdminLayout = () => {
               end={link.end}
               className={({ isActive }) => cn(
                 "flex flex-col items-center justify-center gap-0.5 flex-1 text-[10px] font-medium transition-colors duration-200 relative",
-                isActive
-                  ? "text-primary"
-                  : "text-muted-foreground"
+                isActive ? "text-primary" : "text-muted-foreground"
               )}
             >
               {({ isActive }) => (
@@ -162,7 +167,6 @@ const AdminLayout = () => {
             </NavLink>
           ))}
 
-          {/* More menu for overflow items */}
           <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
             <DropdownMenuTrigger asChild>
               <button
@@ -174,11 +178,11 @@ const AdminLayout = () => {
                 {isOverflowActive && (
                   <span className="absolute top-0 left-1/4 right-1/4 h-0.5 rounded-full bg-primary" />
                 )}
-                <MoreHorizontal className={cn("h-5 w-5 transition-transform duration-200", isOverflowActive && "scale-110")} />
+                <MoreHorizontal className={cn("h-5 w-5", isOverflowActive && "scale-110")} />
                 <span>More</span>
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="end" className="w-48 mb-2 animate-scale-in">
+            <DropdownMenuContent side="top" align="end" className="w-48 mb-2">
               {mobileOverflow.map((link) => {
                 const isActive = link.end
                   ? location.pathname === link.to
